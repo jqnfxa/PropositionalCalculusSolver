@@ -20,6 +20,12 @@ enum class Operation : std::int32_t
 };
 
 
+/**
+ * higher priority - operation must be executed first
+ */
+std::int32_t priority(Operation operation);
+
+
 struct ASTNode
 {
 	std::int32_t var;
@@ -27,6 +33,7 @@ struct ASTNode
 	std::shared_ptr<ASTNode> left;
 	std::shared_ptr<ASTNode> right;
 	ASTNode *parent;
+
 public:
 	/**
 	 * Construction
@@ -46,14 +53,14 @@ public:
 	ASTNode &operator=(const ASTNode &other) = delete;
 
 	/**
-	* Move semantic is ok
-	*/
+	 * Move semantic is ok
+	 */
 	ASTNode(ASTNode &&other);
 	ASTNode &operator=(ASTNode &&other);
 
 	inline bool is_leaf() const noexcept
 	{
-		// should be same as `var != 0`
+		// should be just `var != 0`?
 		return op == Operation::Nop && var != 0 &&
 			left == nullptr && right == nullptr;
 	}
@@ -62,7 +69,7 @@ public:
 	{
 		if (is_leaf())
 		{
-			// vars should not exeed 26
+			// vars should not exeed 26 by abs value
 			std::string result = var < 0 ? "!" : "";
 			result.push_back(std::clamp<char>('a' + std::abs(var) - 1, 'a', 'z'));
 			return result;

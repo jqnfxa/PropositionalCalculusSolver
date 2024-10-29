@@ -1,6 +1,33 @@
 #include "ast.hpp"
 
 
+/**
+ * @note: https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
+ */
+std::int32_t priority(Operation operation)
+{
+	switch (operation)
+	{
+		case Operation::Negation:
+			return 5;
+		case Operation::Disjunction:
+			return 3;
+		case Operation::Conjunction:
+			return 4;
+		case Operation::Implication:
+			return 1;
+		case Operation::Xor:
+			return 2;
+		case Operation::Equivalent:
+			return 2;
+		default:
+		break;
+	}
+
+	return 0;
+}
+
+
 ASTNode::ASTNode(
 	std::int32_t var,
 	Operation op,
@@ -13,6 +40,7 @@ ASTNode::ASTNode(
 	, right(std::move(right))
 	, parent(parent)
 {
+	// reset parent pointers
 	if (this->left != nullptr)
 	{
 		this->left->parent = this;
@@ -31,6 +59,7 @@ ASTNode::ASTNode(ASTNode &&other)
 	, right(std::move(other.right))
 	, parent(std::move(other.parent))
 {
+	// reset parent pointers
 	if (this->left != nullptr)
 	{
 		this->left->parent = this;
@@ -52,6 +81,7 @@ ASTNode &ASTNode::operator=(ASTNode &&other)
 		right = std::move(other.right);
 		parent = std::move(other.parent);
 
+		// reset parent pointers
 		if (left != nullptr)
 		{
 			left->parent = this;

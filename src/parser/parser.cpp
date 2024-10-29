@@ -27,32 +27,6 @@ void ExpressionParser::construct_node()
 }
 
 
-// @note: https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
-// higher priority - operation must be executed first
-std::int32_t ExpressionParser::priority(Operation operation)
-{
-	switch (operation)
-	{
-		case Operation::Negation:
-			return 5;
-		case Operation::Disjunction:
-			return 3;
-		case Operation::Conjunction:
-			return 4;
-		case Operation::Implication:
-			return 1;
-		case Operation::Xor:
-			return 2;
-		case Operation::Equivalent:
-			return 2;
-		default:
-		break;
-	}
-
-	return 0;
-}
-
-
 bool ExpressionParser::is_operation(char token)
 {
 	return token == '!' || token == '|' || token == '*' ||
@@ -148,7 +122,8 @@ std::shared_ptr<ASTNode> ExpressionParser::parse()
 			}
 			last_token_is_operation = true;
 
-			if (!operations.empty() && priority(operations.top()) >= priority(op))
+			if (!operations.empty() &&
+				priority(operations.top()) >= priority(op))
 			{
 				construct_node();
 			}
