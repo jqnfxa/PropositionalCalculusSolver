@@ -1,0 +1,43 @@
+#include "./math/ast.hpp"
+#include "./parser/parser.hpp"
+#include <iostream>
+#include <memory>
+
+
+int main()
+{
+	//ExpressionParser parser{"(a>(b>c))>((a>b)>(a>c))"};
+	//ExpressionParser parser{is};
+	//auto expression = parser.parse();
+
+	// in: 	(a>(b>c))>((a>b)>(a>c))
+	// out: (a>(b>c))>((a>b)>(a>c))
+	// in: 	(a+b)|c*d
+	// out: (a+b)|(c*d)
+	// in:	a|b*c
+	// out: a|(b*c)
+	// in: 	a*b|c
+	// out: (a*b)|c
+	// in: a|b|c
+	// out: (a|b)|c
+	// in: !a|b>c+e*!f
+	// out: (!a|b)>(c+(e*!f))
+	// in: !a
+	// out: !a
+	// in: !!!a
+	// out: !a
+	// in: !!a
+	// out: a
+	// in: !!!!!!!!!!!!!!!!a|!!!!!!f
+	// out: a|f
+
+	std::string is;
+	std::cin >> is;
+
+	//ExpressionParser parser{"(a>(b>c))>((a>b)>(a>c))"};
+	//ExpressionParser parser{is};
+	//auto expression = parser.parse();
+
+	std::cout << ExpressionParser(is).parse() << std::endl;
+	return 0;
+}
