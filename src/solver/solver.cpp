@@ -10,12 +10,13 @@ Solver::Solver(std::vector<std::shared_ptr<ASTNode>> axioms,
 {}
 
 
-bool Solver::is_target_proved() const
+bool Solver::is_target_proved(std::ostream &out) const
 {
 	for (const auto &hypothesis : hypotheses_)
 	{
 		if (is_follows(hypothesis, target_))
 		{
+			out << "target deduced from: " << hypothesis << '\n';
 			return true;
 		}
 	}
@@ -24,38 +25,59 @@ bool Solver::is_target_proved() const
 }
 
 
+// TODO: add search time limit
 void Solver::solve()
 {
-	// step 0: standartize target
+	ss.clear();
+
+	// step 1: standartize target
 	standartize(target_);
+	ss << "standartization: " << target_ << '\n';
+
+	// step 2: normalize target
 	normalize(target_);
+	ss << "normalization: " << target_ << '\n';
 
-	// step 1: decompose target using deduction rule
-	hypotheses_ = deduction_theorem_decomposition(target_);
-	target_ = hypotheses_.back();
-	hypotheses_.pop_back();
+	// step 3: decompose target using deduction rule
+	deduction_theorem_decomposition(ss, hypotheses_, target_);
 
-	// step 2: apply conjunction splitting rule
-	conjunction_splitting_rule(hypotheses_);
+	// step 3: standartize target (again)
+	standartize(target_);
+	ss << "standartization: " << target_ << '\n';
 
-	// step 3: standartize hypotheses
+	// step 4: apply conjunction splitting rule
+	conjunction_splitting_rule(ss, hypotheses_);
+
+	// step 5: standartize hypotheses
 	for (auto &hypothesis : hypotheses_)
 	{
 		standartize(hypothesis);
 	}
 
-	// step 4: search for solution
-	// main idea: use all given rules and all given axioms
-
-	for (const auto &hypothesis : hypotheses_)
+	ss << "hypotheses: ";
+	for (std::size_t i = 0; i < hypotheses_.size(); ++i)
 	{
-		std::cout << hypothesis << '\n';
+		ss << hypotheses_[i];
+
+		if (i + 1 < hypotheses_.size())
+		{
+			ss << ", ";
+		}
 	}
-	std::cout << target_ << '\n';
+	ss << "\ntarget: " << target_ << '\n';
+
+	// step 4: search for solution
+	// TODO: search until time limit is reached
+	while (!is_target_proved(ss))
+	{
+		break;
+	}
+
+	// use MP and given axioms
 }
 
 
-std::vector<std::string> Solver::thought_chain() const
+std::string Solver::thought_chain() const
 {
-	return {};
+	return ss.str();
 }
