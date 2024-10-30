@@ -36,10 +36,11 @@ int main()
 	std::cin >> is;
 
 	auto target_expression = ExpressionParser(is).parse();
-	std::cout << "trying to prove: " << target_expression << "\n\n";
+	std::cout << "your expression: " << target_expression << "\n\n";
 
 	Solver solver({}, target_expression);
 	solver.solve();
+	std::cout << solver.thought_chain();
 
 	return 0;
 }
