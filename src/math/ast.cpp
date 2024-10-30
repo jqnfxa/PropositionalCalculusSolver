@@ -150,3 +150,40 @@ std::ostream &operator<<(std::ostream &out, const std::shared_ptr<ASTNode> &node
 
 	return out;
 }
+
+
+std::int32_t ASTNode::depth() const
+{
+	if (is_leaf())
+	{
+		return 0;
+	}
+
+	return 1 + std::max(left->depth(), right->depth());
+}
+
+
+std::vector<std::int32_t> ASTNode::values() const
+{
+	std::vector<std::int32_t> result;
+
+	std::function<void(const expression_t &)> traverse = [&] (const expression_t &expression)
+	{
+		if (expression == nullptr)
+		{
+			return;
+		}
+
+		if (expression->is_leaf())
+		{
+			result.push_back(expression->var);
+		}
+
+		traverse(expression->left);
+		traverse(expression->right);
+	};
+
+	traverse(left);
+	traverse(right);
+	return result;
+}

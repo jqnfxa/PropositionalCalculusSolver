@@ -6,6 +6,8 @@
 #include <ostream>
 #include <algorithm>
 #include <iostream>
+#include <vector>
+#include <functional>
 
 
 enum class Operation : std::int32_t
@@ -98,6 +100,8 @@ public:
 	}
 
 	std::shared_ptr<ASTNode> deepcopy() const;
+	std::int32_t depth() const;
+	std::vector<std::int32_t> values() const;
 };
 
 
@@ -107,5 +111,11 @@ public:
 std::ostream &operator<<(std::ostream &out, const std::shared_ptr<ASTNode> &node);
 
 using expression_t = std::shared_ptr<ASTNode>;
+
+struct Expression
+{
+	expression_t expression;
+	std::int32_t depth;
+};
 
 #endif // AST_HPP
