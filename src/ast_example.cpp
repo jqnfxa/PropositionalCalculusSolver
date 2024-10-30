@@ -6,9 +6,6 @@
 
 int main()
 {
-	std::shared_ptr<ASTNode> node;
-
-	{
 	auto axiom1{std::make_shared<ASTNode>(
 		0,
 		Operation::Implication,
@@ -53,10 +50,28 @@ int main()
 		)
 	)};
 
-	const auto rules = unification(axiom1, axiom2->left);
-	unify(axiom2, rules);
-	std::cout << axiom2 << '\n';
-	}
+	auto axiom3{std::make_shared<ASTNode>(
+		0,
+		Operation::Implication,
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(-2),
+			std::make_shared<ASTNode>(-1)
+		),
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(
+				0,
+				Operation::Implication,
+				std::make_shared<ASTNode>(-2),
+				std::make_shared<ASTNode>(1)
+			),
+			std::make_shared<ASTNode>(2)
+		)
+	)};
 
+	std::cout << mp(axiom1, axiom2) << '\n';
 	return 0;
 }

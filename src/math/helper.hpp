@@ -85,4 +85,12 @@ std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A
  */
 void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t> &rules);
 
+
+/**
+ * @brief Modes Ponens rule
+ *
+ * @return A, A > B ⊢ B
+ */
+expression_t mp(const expression_t &A, const expression_t &B, bool mut_b = true);
+
 #endif // HELPER_HPP

@@ -363,3 +363,32 @@ void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t>
 
 	apply_modifications(A);
 }
+
+
+/**
+ * @brief Modes Ponens rule
+ *
+ * @return A, A > B ⊢ B
+ */
+expression_t mp(const expression_t &A, const expression_t &B, bool mut_b)
+{
+	if (is_same_expression(A, B->left))
+	{
+		return B->right->deepcopy();
+	}
+
+	if (!mut_b)
+	{
+		return nullptr;
+	}
+
+	auto copy = B->deepcopy();
+	const auto rules = unification(A, B->left);
+	if (rules.empty())
+	{
+		return nullptr;
+	}
+
+	unify(copy, rules);
+	return copy->right;
+}
