@@ -61,4 +61,28 @@ void standartize(expression_t &expression);
  */
 void normalize(expression_t &expression);
 
+
+/**
+ * @brief tries to produce rules to unify B to A with restrictions
+ * @note restrictions:
+ * let's assume `a` is variable
+ * let's assume `b` is variable
+ * let's assume `c` is any expression
+ *
+ * then:
+ * 1. `a` can be replaced with `b`
+ * 2. `a` can be replaced with `c` <=> `c` does not contain `a`
+ *
+ * @return unification rules, if map is empty, then no unification is possible
+ */
+std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A, const expression_t &B);
+
+
+/**
+ * @brief unify A with specific rules
+ *
+ * @return unificated B or nullptr if no unification is possible
+ */
+void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t> &rules);
+
 #endif // HELPER_HPP

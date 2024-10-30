@@ -3,9 +3,6 @@
 #include "helper.hpp"
 
 
-/**
- * @brief return representation of !expression
- */
 expression_t negation(const expression_t &expression)
 {
 	if (expression == nullptr)
@@ -70,9 +67,6 @@ expression_t negation(const expression_t &expression)
 }
 
 
-/**
- * @brief Determine whether `A` is same as `B`
- */
 bool is_same_expression(const expression_t &A, const expression_t &B)
 {
 	const bool ea = A == nullptr;
@@ -120,15 +114,7 @@ bool is_same_expression(const expression_t &A, const expression_t &B)
 		(is_same_expression(A->right, B->left) && is_same_expression(A->left, B->right));
 }
 
-/**
- * @brief Determine whether A ⊢ B
- * @note defined rules:
- * 1. A ⊢ A
- * 2. A ⊢ A | B
- * 3. A ⊢ B | A
- * 4. A ⊢ B > A
- * 5. A ⊢ !A > B
- */
+
 bool is_follows(const expression_t &A, const expression_t &B)
 {
 	// rule 1
@@ -156,13 +142,6 @@ bool is_follows(const expression_t &A, const expression_t &B)
 }
 
 
-/**
- * @brief decompose expression using known theorems
- * @note known theorems:
- * 1. ? ⊢ A > B <=> ?, A ⊢ B (deduction theorem)
- *
- * @return decomposed expression stored in array, new expression (right side) stored last
- */
 std::ostream &deduction_theorem_decomposition(
 	std::ostream &out,
 	std::vector<expression_t> &left_side,
@@ -189,11 +168,6 @@ std::ostream &deduction_theorem_decomposition(
 }
 
 
-/**
- * @brief decompose hypotheses using known theorems
- * @note known theorems:
- * 1. ?,A*B ⊢ C <=> ?,A*B,A,B ⊢ C (conjunction splitting rule)
- */
 std::ostream &conjunction_splitting_rule(
 	std::ostream &out,
 	std::vector<expression_t> &hypotheses
@@ -222,11 +196,6 @@ std::ostream &conjunction_splitting_rule(
 }
 
 
-/**
- * @brief standartization of expression
- * @note rules:
- * 1. A | B <=> !A > B
- */
 void standartize(expression_t &expression)
 {
 	if (expression->is_leaf())
@@ -243,10 +212,6 @@ void standartize(expression_t &expression)
 }
 
 
-/**
- * @brief normalization of expression
- * @note converting expression to use minimum positive nums (if possible)
- */
 void normalize(expression_t &expression)
 {
 	if (expression == nullptr)
@@ -293,4 +258,108 @@ void normalize(expression_t &expression)
 	};
 
 	traverse(expression);
+}
+
+
+std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A, const expression_t &B)
+{
+	// idea is to traverse both trees and store which nodes from B should be replaced
+	std::unordered_map<std::int32_t, expression_t> replacements;
+	bool unifiable = true;
+
+	std::function<void(const expression_t &, const expression_t &)> traverse =
+	[&] (const expression_t &a, const expression_t &b)
+	{
+		if (!unifiable)
+		{
+			return;
+		}
+
+		const bool is_valid_a = a != nullptr;
+		const bool is_valid_b = b != nullptr;
+
+		if (!is_valid_a && !is_valid_b)
+		{
+			return;
+		}
+
+		if (is_valid_a ^ is_valid_b)
+		{
+			unifiable = false;
+			return;
+		}
+
+		if (a->is_leaf() ^ b->is_leaf())
+		{
+			// we can't unify ASTNode to single variable
+			if (a->is_leaf())
+			{
+				unifiable = false;
+				return;
+			}
+			if (b->is_leaf())
+			{
+				// rule is broke!
+				/*if (a->contains(b->var))
+				{
+					unifiable = false;
+					return;
+				}*/
+
+				replacements[b->var] = a->deepcopy();
+			}
+		}
+		if (a->is_leaf() && b->is_leaf())
+		{
+			if (a->var != b->var)
+			{
+				replacements[b->var] = a->deepcopy();
+			}
+		}
+
+		// operation must be the same
+		if (a->op != b->op)
+		{
+			unifiable = false;
+			return;
+		}
+
+		traverse(a->left, b->left);
+		traverse(a->right, b->right);
+	};
+
+	traverse(A, B);
+
+	if (!unifiable)
+	{
+		replacements.clear();
+	}
+
+	return replacements;
+}
+
+
+void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t> &rules)
+{
+	std::function<void(expression_t &)> apply_modifications =
+	[&] (expression_t &expression)
+	{
+		if (expression == nullptr)
+		{
+			return;
+		}
+
+		if (expression->is_leaf() && rules.contains(expression->var))
+		{
+			auto parent = expression->parent;
+			expression = rules.at(expression->var)->deepcopy();
+			expression->parent = parent;
+			return;
+		}
+
+		apply_modifications(expression->left);
+		apply_modifications(expression->right);
+	};
+
+	apply_modifications(A);
 }
