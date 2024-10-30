@@ -123,7 +123,7 @@ std::shared_ptr<ASTNode> ExpressionParser::parse()
 			last_token_is_operation = true;
 
 			if (!operations.empty() &&
-				priority(operations.top()) >= priority(op))
+				priority(operations.top()) > priority(op))
 			{
 				construct_node();
 			}
