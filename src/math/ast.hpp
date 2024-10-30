@@ -106,4 +106,6 @@ public:
  */
 std::ostream &operator<<(std::ostream &out, const std::shared_ptr<ASTNode> &node);
 
+using expression_t = std::shared_ptr<ASTNode>;
+
 #endif // AST_HPP
