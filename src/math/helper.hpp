@@ -30,7 +30,11 @@ bool is_follows(const expression_t &A, const expression_t &B);
  *
  * @return decomposed expression stored in array, new expression (right side) stored last
  */
-std::vector<expression_t> deduction_theorem_decomposition(const expression_t &expression);
+std::ostream &deduction_theorem_decomposition(
+	std::ostream &out,
+	std::vector<expression_t> &left_side,
+	expression_t &target
+);
 
 
 /**
@@ -38,8 +42,10 @@ std::vector<expression_t> deduction_theorem_decomposition(const expression_t &ex
  * @note known theorems:
  * 1. ?,A*B ⊢ C <=> ?,A*B,A,B ⊢ C (conjunction splitting rule)
  */
-void conjunction_splitting_rule(std::vector<expression_t> &hypotheses);
-
+std::ostream &conjunction_splitting_rule(
+	std::ostream &out,
+	std::vector<expression_t> &hypotheses
+);
 
 /**
  * @brief standartization of expression

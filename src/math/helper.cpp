@@ -1,4 +1,5 @@
 #include <set>
+#include <ostream>
 #include "helper.hpp"
 
 
@@ -78,15 +79,27 @@ bool is_same_expression(const expression_t &A, const expression_t &B)
 	const bool eb = B == nullptr;
 
 	// both expressions must be NULL at same time or valid at same time
-	if (ea == eb)
+	if (ea ^ eb)
 	{
 		return false;
 	}
 
 	// two empty expressions are equivalent
-	if (!ea && !eb)
+	if (ea && eb)
 	{
 		return true;
+	}
+
+	// both expressions must be leaf or not leaf at same time
+	if (A->is_leaf() ^ B->is_leaf())
+	{
+		return false;
+	}
+
+	// compare variables
+	if (A->is_leaf() && B->is_leaf())
+	{
+		return A->var == B->var;
 	}
 
 	// compare operation
@@ -150,27 +163,29 @@ bool is_follows(const expression_t &A, const expression_t &B)
  *
  * @return decomposed expression stored in array, new expression (right side) stored last
  */
-std::vector<expression_t> deduction_theorem_decomposition(const expression_t &expression)
+std::ostream &deduction_theorem_decomposition(
+	std::ostream &out,
+	std::vector<expression_t> &left_side,
+	expression_t &target
+)
 {
-	std::vector<expression_t> left_side;
-	auto new_expression = expression->deepcopy();
-
-	while (new_expression != nullptr &&
-		new_expression->op == Operation::Implication)
+	while (target != nullptr &&
+		target->op == Operation::Implication)
 	{
+		out << "(deduction theorem): " << target << '\n';
+
 		// remove relations
-		new_expression->left->parent = nullptr;
-		new_expression->right->parent = nullptr;
+		target->left->parent = nullptr;
+		target->right->parent = nullptr;
 
 		// add left subexpression
-		left_side.push_back(new_expression->left);
+		left_side.push_back(target->left);
 
 		// traverse to right subexpression
-		new_expression = new_expression->right;
+		target = target->right;
 	}
 
-	left_side.push_back(new_expression);
-	return left_side;
+	return out;
 }
 
 
@@ -179,7 +194,10 @@ std::vector<expression_t> deduction_theorem_decomposition(const expression_t &ex
  * @note known theorems:
  * 1. ?,A*B ⊢ C <=> ?,A*B,A,B ⊢ C (conjunction splitting rule)
  */
-void conjunction_splitting_rule(std::vector<expression_t> &hypotheses)
+std::ostream &conjunction_splitting_rule(
+	std::ostream &out,
+	std::vector<expression_t> &hypotheses
+)
 {
 	std::vector<expression_t> new_hypotheses;
 
@@ -188,6 +206,8 @@ void conjunction_splitting_rule(std::vector<expression_t> &hypotheses)
 		// decompose A*B into A,B
 		if (hypothesis->op == Operation::Conjunction)
 		{
+			out << "(conjunction splitting rule): " << hypothesis << '\n';
+
 			new_hypotheses.push_back(hypothesis->left->deepcopy());
 			new_hypotheses.push_back(hypothesis->right->deepcopy());
 		}
@@ -197,6 +217,8 @@ void conjunction_splitting_rule(std::vector<expression_t> &hypotheses)
 	{
 		hypotheses.push_back(new_hypothesis);
 	}
+
+	return out;
 }
 
 
@@ -207,6 +229,11 @@ void conjunction_splitting_rule(std::vector<expression_t> &hypotheses)
  */
 void standartize(expression_t &expression)
 {
+	if (expression->is_leaf())
+	{
+		return;
+	}
+
 	if (expression->op == Operation::Disjunction)
 	{
 		expression->op = Operation::Implication;
@@ -222,19 +249,27 @@ void standartize(expression_t &expression)
  */
 void normalize(expression_t &expression)
 {
+	if (expression == nullptr)
+	{
+		return;
+	}
+
 	auto values = expression->values();
-	std::set<std::int32_t> unique_values;
+	std::unordered_map<std::int32_t, std::int32_t> remapping;
+	std::int32_t new_variable = 1;
+
+	for (auto &value : values)
+	{
+		value = std::abs(value);
+	}
 
 	for (const auto &value : values)
 	{
-		unique_values.insert(std::abs(value));
-	}
+		if (remapping.contains(value))
+		{
+			continue;
+		}
 
-	std::unordered_map<std::int32_t, std::int32_t> remapping;
-
-	std::int32_t new_variable = 1;
-	for (const auto &value : unique_values)
-	{
 		remapping[value] = new_variable;
 		++new_variable;
 	}
