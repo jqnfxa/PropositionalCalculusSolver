@@ -68,6 +68,12 @@ ASTNode::ASTNode(ASTNode &&other)
 	{
 		this->right->parent = this;
 	}
+
+	other.var = 0;
+	other.op = Operation::Nop;
+	other.left = nullptr;
+	other.right = nullptr;
+	other.parent = nullptr;
 }
 
 
@@ -75,8 +81,8 @@ ASTNode &ASTNode::operator=(ASTNode &&other)
 {
 	if (&other != this)
 	{
-		op = other.op;
 		var = other.var;
+		op = other.op;
 		left = std::move(other.left);
 		right = std::move(other.right);
 		parent = std::move(other.parent);
@@ -90,9 +96,33 @@ ASTNode &ASTNode::operator=(ASTNode &&other)
 		{
 			right->parent = this;
 		}
+
+		other.var = 0;
+		other.op = Operation::Nop;
+		other.left = nullptr;
+		other.right = nullptr;
+		other.parent = nullptr;
 	}
 
 	return *this;
+}
+
+
+std::shared_ptr<ASTNode> ASTNode::deepcopy() const
+{
+	std::shared_ptr<ASTNode> lhs;
+	std::shared_ptr<ASTNode> rhs;
+
+	if (left != nullptr)
+	{
+		lhs = left->deepcopy();
+	}
+	if (right != nullptr)
+	{
+		rhs = right->deepcopy();
+	}
+
+	return std::make_shared<ASTNode>(var, op, lhs, rhs);
 }
 
 

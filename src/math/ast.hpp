@@ -46,8 +46,7 @@ public:
 	~ASTNode() = default;
 
 	/**
-	 * It's not allowed to copy node, since it has pointers
-	 * TODO: create deepcopy function?
+	 * Deepcopy contruction is not allowed, use `deepcopy` instead
 	 */
 	ASTNode(const ASTNode &other) = delete;
 	ASTNode &operator=(const ASTNode &other) = delete;
@@ -97,6 +96,8 @@ public:
 
 		return "unknown";
 	}
+
+	std::shared_ptr<ASTNode> deepcopy() const;
 };
 
 
