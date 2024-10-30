@@ -177,6 +177,7 @@ std::vector<std::int32_t> ASTNode::values() const
 		if (expression->is_leaf())
 		{
 			result.push_back(expression->var);
+			return;
 		}
 
 		traverse(expression->left);
@@ -185,5 +186,11 @@ std::vector<std::int32_t> ASTNode::values() const
 
 	traverse(left);
 	traverse(right);
+
+	if (is_leaf())
+	{
+		result.push_back(var);
+	}
+
 	return result;
 }
