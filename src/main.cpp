@@ -1,7 +1,8 @@
-#include "./math/ast.hpp"
-#include "./parser/parser.hpp"
 #include <iostream>
 #include <memory>
+#include "./math/ast.hpp"
+#include "./parser/parser.hpp"
+#include "./solver/solver.hpp"
 
 
 int main()
@@ -34,10 +35,11 @@ int main()
 	std::string is;
 	std::cin >> is;
 
-	//ExpressionParser parser{"(a>(b>c))>((a>b)>(a>c))"};
-	//ExpressionParser parser{is};
-	//auto expression = parser.parse();
+	auto target_expression = ExpressionParser(is).parse();
+	std::cout << "trying to prove: " << target_expression << "\n\n";
 
-	std::cout << ExpressionParser(is).parse() << std::endl;
+	Solver solver({}, target_expression);
+	solver.solve();
+
 	return 0;
 }
