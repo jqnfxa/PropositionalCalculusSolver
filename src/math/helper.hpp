@@ -40,4 +40,19 @@ std::vector<expression_t> deduction_theorem_decomposition(const expression_t &ex
  */
 void conjunction_splitting_rule(std::vector<expression_t> &hypotheses);
 
+
+/**
+ * @brief standartization of expression
+ * @note rules:
+ * 1. A | B <=> !A > B
+ */
+void standartize(expression_t &expression);
+
+
+/**
+ * @brief normalization of expression
+ * @note converting expression to use minimum positive nums (if possible)
+ */
+void normalize(expression_t &expression);
+
 #endif // HELPER_HPP

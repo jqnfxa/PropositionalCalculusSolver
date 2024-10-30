@@ -1,3 +1,4 @@
+#include <set>
 #include "helper.hpp"
 
 
@@ -94,9 +95,16 @@ bool is_same_expression(const expression_t &A, const expression_t &B)
 		return false;
 	}
 
-	// otherwise check both subtrees
-	return is_same_expression(A->left, B->left) &&
-		is_same_expression(A->right, B->right);
+	if (A->op == Operation::Implication)
+	{
+		// check both subtrees
+		return is_same_expression(A->left, B->left) &&
+			is_same_expression(A->right, B->right);
+	}
+
+	// all other operations are commutative
+	return (is_same_expression(A->left, B->left) && is_same_expression(A->right, B->right)) ||
+		(is_same_expression(A->right, B->left) && is_same_expression(A->left, B->right));
 }
 
 /**
@@ -189,4 +197,65 @@ void conjunction_splitting_rule(std::vector<expression_t> &hypotheses)
 	{
 		hypotheses.push_back(new_hypothesis);
 	}
+}
+
+
+/**
+ * @brief standartization of expression
+ * @note rules:
+ * 1. A | B <=> !A > B
+ */
+void standartize(expression_t &expression)
+{
+	if (expression->op == Operation::Disjunction)
+	{
+		expression->op = Operation::Implication;
+		expression->left = negation(expression->left);
+		expression->left->parent = expression.get();
+	}
+}
+
+
+/**
+ * @brief normalization of expression
+ * @note converting expression to use minimum positive nums (if possible)
+ */
+void normalize(expression_t &expression)
+{
+	auto values = expression->values();
+	std::set<std::int32_t> unique_values;
+
+	for (const auto &value : values)
+	{
+		unique_values.insert(std::abs(value));
+	}
+
+	std::unordered_map<std::int32_t, std::int32_t> remapping;
+
+	std::int32_t new_variable = 1;
+	for (const auto &value : unique_values)
+	{
+		remapping[value] = new_variable;
+		++new_variable;
+	}
+
+	// update expression tree
+	std::function<void(expression_t &)> traverse = [&] (expression_t &e)
+	{
+		if (e == nullptr)
+		{
+			return;
+		}
+
+		if (e->is_leaf())
+		{
+			auto sign = e->var < 0 ? -1 : 1;
+			e->var = sign * remapping.at(std::abs(e->var));
+		}
+
+		traverse(e->left);
+		traverse(e->right);
+	};
+
+	traverse(expression);
 }

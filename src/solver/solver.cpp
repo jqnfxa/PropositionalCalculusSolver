@@ -26,6 +26,10 @@ bool Solver::is_target_proved() const
 
 void Solver::solve()
 {
+	// step 0: standartize target
+	standartize(target_);
+	normalize(target_);
+
 	// step 1: decompose target using deduction rule
 	hypotheses_ = deduction_theorem_decomposition(target_);
 	target_ = hypotheses_.back();
@@ -33,6 +37,15 @@ void Solver::solve()
 
 	// step 2: apply conjunction splitting rule
 	conjunction_splitting_rule(hypotheses_);
+
+	// step 3: standartize hypotheses
+	for (auto &hypothesis : hypotheses_)
+	{
+		standartize(hypothesis);
+	}
+
+	// step 4: search for solution
+	// main idea: use all given rules and all given axioms
 
 	for (const auto &hypothesis : hypotheses_)
 	{
