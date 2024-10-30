@@ -167,7 +167,8 @@ std::vector<std::int32_t> ASTNode::values() const
 {
 	std::vector<std::int32_t> result;
 
-	std::function<void(const expression_t &)> traverse = [&] (const expression_t &expression)
+	std::function<void(const expression_t &)> traverse =
+	[&] (const expression_t &expression)
 	{
 		if (expression == nullptr)
 		{
@@ -193,4 +194,32 @@ std::vector<std::int32_t> ASTNode::values() const
 	}
 
 	return result;
+}
+
+
+bool ASTNode::contains(const std::int32_t v) const
+{
+	// questinable move ?
+	if (is_leaf())
+	{
+		return var == v;
+	}
+
+	std::function<bool(const expression_t &)> traverse =
+	[&] (const expression_t &expression)
+	{
+		if (expression == nullptr)
+		{
+			return false;
+		}
+
+		if (expression->is_leaf())
+		{
+			return expression->var == v;
+		}
+
+		return traverse(expression->left) || traverse(expression->right);
+	};
+
+	return traverse(left) || traverse(right);
 }

@@ -102,6 +102,7 @@ public:
 	std::shared_ptr<ASTNode> deepcopy() const;
 	std::int32_t depth() const;
 	std::vector<std::int32_t> values() const;
+	bool contains(const std::int32_t v) const;
 };
 
 
