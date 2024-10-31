@@ -7,30 +7,71 @@
 
 int main()
 {
-	//ExpressionParser parser{"(a>(b>c))>((a>b)>(a>c))"};
-	//ExpressionParser parser{is};
-	//auto expression = parser.parse();
+	auto axiom1{std::make_shared<ASTNode>(
+		0,
+		Operation::Implication,
+		std::make_shared<ASTNode>(1),
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(2),
+			std::make_shared<ASTNode>(1)
+		)
+	)};
 
-	// in: 	(a>(b>c))>((a>b)>(a>c))
-	// out: (a>(b>c))>((a>b)>(a>c))
-	// in: 	(a+b)|c*d
-	// out: (a+b)|(c*d)
-	// in:	a|b*c
-	// out: a|(b*c)
-	// in: 	a*b|c
-	// out: (a*b)|c
-	// in: a|b|c
-	// out: (a|b)|c
-	// in: !a|b>c+e*!f
-	// out: (!a|b)>(c+(e*!f))
-	// in: !a
-	// out: !a
-	// in: !!!a
-	// out: !a
-	// in: !!a
-	// out: a
-	// in: !!!!!!!!!!!!!!!!a|!!!!!!f
-	// out: a|f
+	auto axiom2{std::make_shared<ASTNode>(
+		0,
+		Operation::Implication,
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(1),
+			std::make_shared<ASTNode>(
+				0,
+				Operation::Implication,
+				std::make_shared<ASTNode>(2),
+				std::make_shared<ASTNode>(3)
+			)
+		),
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(
+				0,
+				Operation::Implication,
+				std::make_shared<ASTNode>(1),
+				std::make_shared<ASTNode>(2)
+			),
+			std::make_shared<ASTNode>(
+				0,
+				Operation::Implication,
+				std::make_shared<ASTNode>(1),
+				std::make_shared<ASTNode>(3)
+			)
+		)
+	)};
+
+	auto axiom3{std::make_shared<ASTNode>(
+		0,
+		Operation::Implication,
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(-2),
+			std::make_shared<ASTNode>(-1)
+		),
+		std::make_shared<ASTNode>(
+			0,
+			Operation::Implication,
+			std::make_shared<ASTNode>(
+				0,
+				Operation::Implication,
+				std::make_shared<ASTNode>(-2),
+				std::make_shared<ASTNode>(1)
+			),
+			std::make_shared<ASTNode>(2)
+		)
+	)};
 
 	std::string is;
 	std::cin >> is;
@@ -38,7 +79,7 @@ int main()
 	auto target_expression = ExpressionParser(is).parse();
 	std::cout << "your expression: " << target_expression << "\n\n";
 
-	Solver solver({}, target_expression);
+	Solver solver({axiom1, axiom2, axiom3}, target_expression);
 	solver.solve();
 	std::cout << solver.thought_chain();
 
