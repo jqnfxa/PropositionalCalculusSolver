@@ -182,14 +182,14 @@ std::ostream &conjunction_splitting_rule(
 		{
 			out << "(conjunction splitting rule): " << hypothesis << '\n';
 
-			new_hypotheses.push_back(hypothesis->left->deepcopy());
-			new_hypotheses.push_back(hypothesis->right->deepcopy());
+			new_hypotheses.emplace_back(hypothesis->left->deepcopy());
+			new_hypotheses.emplace_back(hypothesis->right->deepcopy());
 		}
 	}
 
 	for (const auto &new_hypothesis : new_hypotheses)
 	{
-		hypotheses.push_back(new_hypothesis);
+		hypotheses.emplace_back(new_hypothesis);
 	}
 
 	return out;
@@ -198,6 +198,11 @@ std::ostream &conjunction_splitting_rule(
 
 void standartize(expression_t &expression)
 {
+	if (expression == nullptr)
+	{
+		return;
+	}
+
 	if (expression->is_leaf())
 	{
 		return;
@@ -206,7 +211,7 @@ void standartize(expression_t &expression)
 	if (expression->op == Operation::Disjunction)
 	{
 		expression->op = Operation::Implication;
-		expression->left = negation(expression->left);
+		expression->left = std::move(negation(expression->left));
 		expression->left->parent = expression.get();
 	}
 }
@@ -263,6 +268,11 @@ void normalize(expression_t &expression)
 
 std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A, const expression_t &B)
 {
+	if (A == nullptr || B == nullptr)
+	{
+		return {};
+	}
+
 	// idea is to traverse both trees and store which nodes from B should be replaced
 	std::unordered_map<std::int32_t, expression_t> replacements;
 	bool unifiable = true;
@@ -289,15 +299,18 @@ std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A
 			return;
 		}
 
-		if (a->is_leaf() ^ b->is_leaf())
+		const bool is_leaf_a = a->is_leaf();
+		const bool is_leaf_b = b->is_leaf();
+
+		if (is_leaf_a ^ is_leaf_b)
 		{
 			// we can't unify ASTNode to single variable
-			if (a->is_leaf())
+			if (is_leaf_a)
 			{
 				unifiable = false;
 				return;
 			}
-			if (b->is_leaf())
+			if (is_leaf_b)
 			{
 				// rule is broke!
 				/*if (a->contains(b->var))
@@ -306,14 +319,14 @@ std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A
 					return;
 				}*/
 
-				replacements[b->var] = a->deepcopy();
+				replacements[b->var] = std::move(a->deepcopy());
 			}
 		}
-		if (a->is_leaf() && b->is_leaf())
+		if (is_leaf_a && is_leaf_b)
 		{
 			if (a->var != b->var)
 			{
-				replacements[b->var] = a->deepcopy();
+				replacements[b->var] = std::move(a->deepcopy());
 			}
 		}
 
@@ -372,6 +385,16 @@ void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t>
  */
 expression_t mp(const expression_t &A, const expression_t &B, bool mut_b)
 {
+	if (A == nullptr || B == nullptr)
+	{
+		return nullptr;
+	}
+
+	if (B->is_leaf())
+	{
+		return nullptr;
+	}
+
 	if (is_same_expression(A, B->left))
 	{
 		return B->right->deepcopy();
@@ -383,7 +406,7 @@ expression_t mp(const expression_t &A, const expression_t &B, bool mut_b)
 	}
 
 	auto copy = B->deepcopy();
-	const auto rules = unification(A, B->left);
+	const auto rules = unification(A, copy->left);
 	if (rules.empty())
 	{
 		return nullptr;
