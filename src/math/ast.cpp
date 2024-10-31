@@ -1,3 +1,4 @@
+#include <sstream>
 #include "ast.hpp"
 
 
@@ -108,6 +109,14 @@ ASTNode &ASTNode::operator=(ASTNode &&other)
 }
 
 
+std::string ASTNode::to_string() const
+{
+	std::stringstream ss;
+	ss << this;
+	return ss.str();
+}
+
+
 std::shared_ptr<ASTNode> ASTNode::deepcopy() const
 {
 	std::shared_ptr<ASTNode> lhs;
@@ -123,6 +132,32 @@ std::shared_ptr<ASTNode> ASTNode::deepcopy() const
 	}
 
 	return std::make_shared<ASTNode>(var, op, lhs, rhs);
+}
+
+
+std::ostream &operator<<(std::ostream &out, const ASTNode *node)
+{
+	if (node == nullptr)
+	{
+		return out;
+	}
+
+	const bool should_use_brackets = node->parent != nullptr && !node->is_leaf();
+	if (should_use_brackets)
+	{
+		out << "(";
+	}
+
+	out << node->left;
+	out << node->stringify();
+	out << node->right;
+
+	if (should_use_brackets)
+	{
+		out << ")";
+	}
+
+	return out;
 }
 
 
@@ -160,6 +195,34 @@ std::int32_t ASTNode::depth() const
 	}
 
 	return 1 + std::max(left->depth(), right->depth());
+}
+
+
+std::int32_t ASTNode::operations() const
+{
+	std::int32_t count = is_leaf() ? 0 : 1;
+
+	std::function<void(const expression_t &)> traverse =
+	[&] (const expression_t &expression)
+	{
+		if (expression == nullptr)
+		{
+			return;
+		}
+
+		if (expression->is_leaf())
+		{
+			return;
+		}
+
+		++count;
+		traverse(expression->left);
+		traverse(expression->right);
+	};
+
+	traverse(left);
+	traverse(right);
+	return count;
 }
 
 

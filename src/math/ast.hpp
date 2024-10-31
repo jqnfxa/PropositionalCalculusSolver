@@ -62,8 +62,7 @@ public:
 	inline bool is_leaf() const noexcept
 	{
 		// should be just `var != 0`?
-		return op == Operation::Nop && var != 0 &&
-			left == nullptr && right == nullptr;
+		return var != 0;
 	}
 
 	inline std::string stringify() const noexcept
@@ -99,8 +98,10 @@ public:
 		return "unknown";
 	}
 
+	std::string to_string() const;
 	std::shared_ptr<ASTNode> deepcopy() const;
 	std::int32_t depth() const;
+	std::int32_t operations() const;
 	std::vector<std::int32_t> values() const;
 	bool contains(const std::int32_t v) const;
 };
@@ -109,6 +110,7 @@ public:
 /**
  * Recursive operator
  */
+std::ostream &operator<<(std::ostream &out, const ASTNode *node);
 std::ostream &operator<<(std::ostream &out, const std::shared_ptr<ASTNode> &node);
 
 using expression_t = std::shared_ptr<ASTNode>;
