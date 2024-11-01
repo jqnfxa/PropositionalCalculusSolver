@@ -15,9 +15,9 @@ enum class Operation : std::int32_t
 {
 	Nop = 0,
 	Negation,
+	Implication,
 	Disjunction,
 	Conjunction,
-	Implication,
 	Xor,
 	Equivalent
 };
@@ -27,6 +27,26 @@ enum class Operation : std::int32_t
  * https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
  */
 std::int32_t priority(Operation operation);
+
+
+/**
+ * @brief determine whether operation is commutative or not
+ */
+bool is_commutative(Operation operation);
+
+
+/**
+ * @brief returns !(operation)
+ * @note list:
+ * Nop - Nop
+ * Negation - Negation
+ * Implication - Conjuction
+ * Disjunction - Conjuction
+ * Conjunction - Implication
+ * Xor - Equivalent
+ * Equivalent - Xor
+ */
+Operation opposite(Operation operation);
 
 
 struct ASTNode
@@ -48,9 +68,12 @@ struct ASTNode
 		, refs{self, left, right, parent}
 	{}
 
+	std::string to_string() const;
 	inline bool is_leaf() const noexcept { return var != 0; }
 	inline std::size_t id() const noexcept { return refs[0]; }
-	std::string to_string() const;
+	inline std::size_t left() const noexcept { return refs[1]; }
+	inline std::size_t right() const noexcept { return refs[2]; }
+	inline std::size_t parent() const noexcept { return refs[3]; }
 
 	// we don't compare refs
 	inline bool operator==(const ASTNode& other) const noexcept
@@ -81,6 +104,9 @@ public:
 	inline Expression(std::vector<ASTNode> tokens)
 		: tokens(std::move(tokens))
 	{}
+	inline Expression(const Expression &other)
+		: tokens(other.tokens)
+	{}
 
 	// getters
 	std::size_t n_ops() const noexcept;
@@ -108,6 +134,10 @@ public:
 	{
 		return !equals(other);
 	}
+
+	// inplace negation of subtree
+	void negation(std::size_t index);
+	static Expression negation(const Expression &expression);
 };
 
 
