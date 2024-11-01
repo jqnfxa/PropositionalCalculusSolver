@@ -2,8 +2,10 @@
 #include <vector>
 #include <sstream>
 #include <unordered_map>
+#include <iostream>
 #include <stack>
 #include <queue>
+#include <functional>
 #include "ast.hpp"
 
 
@@ -35,14 +37,6 @@ const auto opposite_operation = [] () -> std::unordered_map<Operation, Operation
 }();
 
 
-
-constexpr const std::int32_t op_priority[] = {0, 5, 3, 4, 1, 2, 2};
-std::int32_t priority(Operation operation)
-{
-	return op_priority[static_cast<std::int32_t>(operation)];
-}
-
-
 bool is_commutative(Operation operation)
 {
 	// operation: ?, !, >, |, *, +, =
@@ -62,6 +56,11 @@ std::string ASTNode::to_string() const
 {
 	if (is_leaf())
 	{
+		if (std::abs(var) == 0 || std::abs(var) > 26)
+		{
+			return "Nan";
+		}
+
 		// vars should not exeed 26 by abs value
 		std::string result = var < 0 ? "!" : "";
 		result.push_back(std::clamp<char>('a' + std::abs(var) - 1, 'a', 'z'));
@@ -155,6 +154,55 @@ std::size_t Expression::parent(std::size_t index) const noexcept
 }
 
 
+void Expression::insert_inplace(std::size_t index, const Expression &expression, std::size_t side) noexcept
+{
+	if (!in_range(index))
+	{
+		return;
+	}
+
+	auto update_index = [] (std::size_t index, std::size_t offset)
+	{
+		if (index == INVALID_INDEX)
+		{
+			return index;
+		}
+
+		return index + offset;
+	};
+
+	std::size_t offset = n_tokens();
+	tokens[index].refs[side] = offset;
+	tokens.emplace_back(
+		expression.tokens[0].var,
+		expression.tokens[0].op,
+		offset,
+		update_index(expression.tokens[0].refs[1], offset),
+		update_index(expression.tokens[0].refs[2], offset),
+		index
+	);
+
+	for (std::size_t i = 1; i < expression.n_tokens(); ++i)
+	{
+		tokens.emplace_back(
+			expression.tokens[i].var,
+			expression.tokens[i].op,
+			update_index(expression.tokens[i].refs[0], offset),
+			update_index(expression.tokens[i].refs[1], offset),
+			update_index(expression.tokens[i].refs[2], offset),
+			update_index(expression.tokens[i].refs[3], offset)
+		);
+	}
+}
+
+Expression Expression::insert(std::size_t index, const Expression &expression) const noexcept
+{
+	Expression new_expression{expression};
+	new_expression.insert_inplace(index, expression);
+	return new_expression;
+}
+
+
 Expression Expression::subtree(std::size_t index) const noexcept
 {
 	std::vector<ASTNode> ast;
@@ -169,34 +217,42 @@ Expression Expression::subtree(std::size_t index) const noexcept
 	ast.reserve(tokens.size());
 
 	// bfs traverse
-	std::queue<std::pair<ASTNode, std::size_t>> q;
+	std::queue<std::pair<std::size_t, std::size_t>> q;
 	q.push({left(index), INVALID_INDEX});
 	std::size_t order_index = 0;
 
 	while (!q.empty())
 	{
-		const auto &[node, parent_idx] = q.front();
+		const auto &[node_idx, parent_idx] = q.front();
 
 		// skip invalid nodes
-		if (node.id() == INVALID_INDEX)
+		if (node_idx == INVALID_INDEX)
 		{
+			q.pop();
 			continue;
+		}
+
+		// update relation
+		if (parent_idx != INVALID_INDEX)
+		{
+			ast[parent_idx].refs[node_idx - parent_idx] = node_idx;
 		}
 
 		// add current node to ast subtree
 		ast.emplace_back(
-			node.var,
-			node.op,
+			tokens[node_idx].var,
+			tokens[node_idx].op,
 			order_index,
-			order_index + 1,
-			order_index + 2,
+			INVALID_INDEX,
+			INVALID_INDEX,
 			parent_idx
 		);
 
 		// push nodes
-		q.emplace(left(node.id()), index);
-		q.emplace(right(node.id()), index);
+		q.emplace(left(node_idx), index);
+		q.emplace(right(node_idx), index);
 
+		++order_index;
 		q.pop();
 	}
 
@@ -204,7 +260,7 @@ Expression Expression::subtree(std::size_t index) const noexcept
 }
 
 
-void Expression::negation(std::size_t index)
+void Expression::negation_inplace(std::size_t index)
 {
 	if (!in_range(index))
 	{
@@ -217,7 +273,7 @@ void Expression::negation(std::size_t index)
 
 	while (!q.empty())
 	{
-		const auto [node_idx] = q.front();
+		const auto node_idx = q.front();
 		q.pop();
 
 		// skip invalid nodes
@@ -226,63 +282,89 @@ void Expression::negation(std::size_t index)
 			continue;
 		}
 
-		if (result[node_idx].is_leaf())
+		if (tokens[node_idx].is_leaf())
 		{
-			result[node_idx].var *= -1;
+			tokens[node_idx].var *= -1;
 			continue;
 		}
 
 		// inverse operation
-		result[node_idx].op = opposite(result[node_idx].op);
+		tokens[node_idx].op = opposite(tokens[node_idx].op);
 
 		// continue negation if required
-		if (result[node_idx].op == Operation::Implication ||
-			result[node_idx].op == Operation::Conjunction)
+		if (tokens[node_idx].op == Operation::Implication ||
+			tokens[node_idx].op == Operation::Conjunction)
 		{
-			result[node_idx].op = opposite(result[node_idx].op);
-			q.push(result[node_idx].right());
+			q.push(tokens[node_idx].right());
 		}
-		else if (result[node_idx].op == Operation::Disjuction)
+		else if (tokens[node_idx].op == Operation::Disjunction)
 		{
-			q.push(result[node_idx].left());
-			q.push(result[node_idx].right());
+			q.push(tokens[node_idx].left());
+			q.push(tokens[node_idx].right());
 		}
 	}
 }
 
 
-static Expression Expression::negation(const Expression &expression)
+Expression Expression::negation()
 {
-	Expression new_expression{expression};
-	new_expression.negation(0);
+	Expression new_expression{*this};
+	new_expression.negation_inplace(0);
+	return new_expression;
+}
+
+
+Expression contruct_expression(
+	const Expression &lhs,
+	Operation op,
+	const Expression &rhs
+)
+{
+	// create storage
+	std::vector<ASTNode> expression;
+	expression.reserve(lhs.n_tokens() + rhs.n_tokens() + 1);
+	expression.emplace_back(0, op, 0);
+
+	Expression new_expression(std::move(expression));
+	new_expression.insert_inplace(0, lhs, 1);
+	new_expression.insert_inplace(0, rhs, 2);
 	return new_expression;
 }
 
 
 std::ostream &operator<<(std::ostream &out, const Expression &expression)
 {
-	std::stack<ASTNode> st;
-	auto current = expression.root();
-
-	while (!st.empty() || current.id() != INVALID_INDEX)
+	std::function<std::ostream &(
+		std::ostream &,
+		const Expression &,
+		std::size_t
+	)> f = [&] (std::ostream &out, const Expression &expression, std::size_t idx) -> std::ostream &
 	{
-		// push left child onto stack and move to leftmost node
-		while (current.id() != INVALID_INDEX)
+		if (idx == INVALID_INDEX)
 		{
-			st.push(current);
-			current = expression.left(current.id());
+			return out;
 		}
 
-		// pop top node from stack and visit it
-		current = st.top();
-		st.pop();
+		const bool should_use_brackets =
+			expression[idx].parent() != INVALID_INDEX &&
+			!expression[idx].is_leaf();
+		if (should_use_brackets)
+		{
+			out << "(";
+		}
 
-		// Print the value of the popped node
-		out << current.to_string();
+		f(out, expression, expression.left(idx));
+		out << expression[idx].to_string();
+		f(out, expression, expression.right(idx));
 
-		// move to right subtree
-		current = expression.right(current.id());
-	}
+		if (should_use_brackets)
+		{
+			out << ")";
+		}
 
+		return out;
+	};
+
+	f(out, expression, 0);
 	return out;
 }

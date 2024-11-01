@@ -7,9 +7,7 @@
 #include <vector>
 #include <array>
 
-
 constexpr const std::size_t INVALID_INDEX = static_cast<std::size_t>(-1);
-
 
 enum class Operation : std::int32_t
 {
@@ -21,12 +19,6 @@ enum class Operation : std::int32_t
 	Xor,
 	Equivalent
 };
-
-/**
- * @note: higher priority - operation must be executed first
- * https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
- */
-std::int32_t priority(Operation operation);
 
 
 /**
@@ -69,7 +61,15 @@ struct ASTNode
 	{}
 
 	std::string to_string() const;
-	inline bool is_leaf() const noexcept { return var != 0; }
+	inline bool is_leaf() const noexcept
+	{
+		return refs[1] == INVALID_INDEX && refs[2] == INVALID_INDEX;
+	}
+	inline bool is_valid() const noexcept
+	{
+		return var != 0 || op != Operation::Nop;
+	}
+
 	inline std::size_t id() const noexcept { return refs[0]; }
 	inline std::size_t left() const noexcept { return refs[1]; }
 	inline std::size_t right() const noexcept { return refs[2]; }
@@ -98,17 +98,12 @@ private:
 		return std::ranges::equal(tokens, other.tokens);
 	}
 public:
-        inline Expression()
-		: tokens(1)
-	{}
-	inline Expression(std::vector<ASTNode> tokens)
-		: tokens(std::move(tokens))
-	{}
-	inline Expression(const Expression &other)
-		: tokens(other.tokens)
-	{}
+        Expression() : tokens(1) {}
+	Expression(std::vector<ASTNode> tokens) : tokens(std::move(tokens)) {}
+	Expression(const Expression &other) : tokens(other.tokens) {}
 
 	// getters
+	inline std::size_t n_tokens() const noexcept { return tokens.size(); }
 	std::size_t n_ops() const noexcept;
 	std::size_t n_vars() const noexcept;
 	std::vector<std::int32_t> vars() const noexcept;
@@ -117,9 +112,12 @@ public:
 	// tree getters
 	inline const ASTNode &root() const { return tokens[0]; }
 	inline ASTNode &root() { return tokens[0]; }
+	inline const ASTNode &operator[](std::size_t idx) const { return tokens[idx]; }
 	std::size_t left(std::size_t index) const noexcept;
 	std::size_t right(std::size_t index) const noexcept;
 	std::size_t parent(std::size_t index) const noexcept;
+	void insert_inplace(std::size_t index, const Expression &expression, std::size_t side = 0) noexcept;
+	Expression insert(std::size_t index, const Expression &expression) const noexcept;
 
 	// get subtree down from index
 	Expression subtree(std::size_t index) const noexcept;
@@ -136,8 +134,8 @@ public:
 	}
 
 	// inplace negation of subtree
-	void negation(std::size_t index);
-	static Expression negation(const Expression &expression);
+	void negation_inplace(std::size_t index = 0);
+	Expression negation();
 };
 
 
@@ -146,5 +144,13 @@ public:
  */
 std::ostream &operator<<(std::ostream &out, const Expression &expression);
 
+/**
+ * expression constructor
+ */
+Expression contruct_expression(
+	const Expression &lhs,
+	Operation op,
+	const Expression &rhs
+);
 
 #endif // AST_HPP

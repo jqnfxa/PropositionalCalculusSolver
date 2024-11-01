@@ -1,7 +1,6 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
-#include <memory>
 #include <string>
 #include <cstdint>
 #include <stack>
@@ -9,13 +8,22 @@
 #include "../math/ast.hpp"
 
 
+enum class Token : std::int32_t
+{
+	Nop = 0,
+	Negation,
+	Implication,
+	Disjunction,
+	Conjunction,
+	Xor,
+	Equivalent,
+	OpenBracket,
+	CloseBracket
+};
+
+
 class ExpressionParser
 {
-	/**
-	 * used for `!` unary negation
-	 */
-	bool neg;
-
 	/**
 	 * number of brackets `(` ~ `+1`; `)` ~ `-1`
 	 */
@@ -29,8 +37,8 @@ class ExpressionParser
 	/**
 	 * stacks for rpn
 	 */
-	std::stack<std::shared_ptr<ASTNode>> operands;
-	std::stack<Operation> operations;
+	std::stack<Expression> operands;
+	std::stack<Token> operations;
 
 	/**
 	 * helper functions
@@ -38,11 +46,11 @@ class ExpressionParser
 	void construct_node();
 	bool is_operation(char token);
 	Operation determine_operation(char token);
-	std::shared_ptr<ASTNode> determine_operand(char token);
+	ASTNode determine_operand(char token);
 
 public:
 	ExpressionParser(std::string_view expression);
-	std::shared_ptr<ASTNode> parse();
+	Expression parse();
 };
 
 

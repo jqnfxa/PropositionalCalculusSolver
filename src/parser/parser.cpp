@@ -1,11 +1,43 @@
 #include <stack>
 #include <cstdint>
+#include <unordered_map>
+#include <iostream>
 #include "parser.hpp"
 
 
+const auto char_to_op = [] () -> std::unordered_map<char, Operation>
+{
+	return std::unordered_map<char, Operation>{
+		{'\0', Operation::Nop},
+		{'!', Operation::Negation},
+		{'|', Operation::Disjunction},
+		{'*', Operation::Conjunction},
+		{'>', Operation::Implication},
+		{'+', Operation::Xor},
+		{'=', Operation::Equivalent}
+	};
+}();
+
+
+/**
+ * @note: higher priority - operation must be executed first
+ * https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
+ */
+constexpr const std::int32_t pri[] = {0, 5, 1, 3, 4, 2, 2, 0, 0};
+std::int32_t priority(Token operation)
+{
+	return pri[static_cast<std::int32_t>(operation)];
+}
+
+
+std::int32_t priority(Operation operation)
+{
+	return pri[static_cast<std::int32_t>(operation)];
+}
+
+
 ExpressionParser::ExpressionParser(std::string_view expression)
-	: neg(false)
-	, brackets(0)
+	: brackets(0)
 	, expression(expression)
 	, operands{}
 	, operations{}
@@ -14,95 +46,96 @@ ExpressionParser::ExpressionParser(std::string_view expression)
 
 void ExpressionParser::construct_node()
 {
+	if (operations.top() == Token::Negation)
+	{
+		// extract nodes
+		auto operand = operands.top();
+		operands.pop();
+		operations.pop();
+
+		operand.negation_inplace(0);
+		operands.push(operand);
+		return;
+	}
+
+	if (operands.size() < 2 || operations.size() < 1)
+	{
+		return;
+	}
+
 	// extract nodes
-	auto rhs = operands.top();
+	const auto rhs = operands.top();
 	operands.pop();
-	auto op = operations.top();
+	const auto op = static_cast<Operation>(static_cast<std::int32_t>(operations.top()));
 	operations.pop();
-	auto lhs = operands.top();
+	const auto lhs = operands.top();
 	operands.pop();
 
 	// add produced node
-	operands.push(std::make_shared<ASTNode>(0, op, lhs, rhs));
+	operands.emplace(contruct_expression(lhs, op, rhs));
 }
 
 
 bool ExpressionParser::is_operation(char token)
 {
-	return token == '!' || token == '|' || token == '*' ||
-		token == '>' || token == '+' || token == '=';
+	return char_to_op.contains(token);
 }
 
 
 Operation ExpressionParser::determine_operation(char token)
 {
-	switch (token)
+	if (!is_operation(token))
 	{
-		case '!':
-			return Operation::Negation;
-		case '|':
-			return Operation::Disjunction;
-		case '*':
-			return Operation::Conjunction;
-		case '>':
-			return Operation::Implication;
-		case '+':
-			return Operation::Xor;
-		case '=':
-			return Operation::Equivalent;
-		default:
-		break;
+		return Operation::Nop;
 	}
 
-	return Operation::Nop;
+	return char_to_op.at(token);
 }
 
 
-std::shared_ptr<ASTNode> ExpressionParser::determine_operand(char token)
+ASTNode ExpressionParser::determine_operand(char token)
 {
 	if (!('a' <= token && token <= 'z'))
 	{
 		throw std::runtime_error("invalid variable name");
 	}
 
-        auto value = token - 'a' + 1;
-	if (neg)
-	{
-		value *= -1;
-		neg = !neg;
-	}
-
-	return std::make_shared<ASTNode>(value, Operation::Nop);
+	return {token - 'a' + 1, Operation::Nop, 0};
 }
 
 
-std::shared_ptr<ASTNode> ExpressionParser::parse()
+Expression ExpressionParser::parse()
 {
-	bool last_token_is_operation = false;
+	bool last_token_is_op = false;
 	for (const auto &token : expression)
 	{
-		if (token == ' ')
+		if (std::isspace(token))
 		{
 			continue;
 		}
 
 		if (token == '(')
 		{
-			++brackets;
-			last_token_is_operation = false;
+			operations.push(Token::OpenBracket);
+			last_token_is_op = false;
 			continue;
 		}
 
 		if (token == ')')
 		{
-			--brackets;
-			if (brackets < 0)
+			if (operations.empty())
 			{
 				throw std::runtime_error("incorrect parentheses");
 			}
 
-			construct_node();
-			last_token_is_operation = false;
+			while (!operations.empty() && operations.top() != Token::OpenBracket)
+			{
+				construct_node();
+			}
+
+			// pop open bracket
+			operations.pop();
+			last_token_is_op = false;
 			continue;
 		}
 
@@ -111,35 +144,31 @@ std::shared_ptr<ASTNode> ExpressionParser::parse()
 			const auto op = determine_operation(token);
 			if (op == Operation::Negation)
 			{
-				neg = !neg;
+				// "!(!a)" -> "a"
+				operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
 				continue;
 			}
 
-			if (last_token_is_operation)
+			if (last_token_is_op)
 			{
 				throw std::runtime_error("incorrect input:"
 				" multiple operations defined one by one");
 			}
-			last_token_is_operation = true;
 
-			if (!operations.empty() &&
+			last_token_is_op  = true;
+			while (!operations.empty() &&
 				priority(operations.top()) > priority(op))
 			{
 				construct_node();
 			}
 
-			operations.push(op);
+			operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
 		}
 		else
 		{
-			last_token_is_operation = false;
-			operands.push(std::move(determine_operand(token)));
+			last_token_is_op = false;
+			operands.emplace(std::vector<ASTNode>{determine_operand(token)});
 		}
-	}
-
-        if (brackets > 0)
-	{
-		throw std::runtime_error("incorrect parentheses");
 	}
 
 	while (!operations.empty())
