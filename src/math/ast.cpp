@@ -1,288 +1,203 @@
+#include <algorithm>
+#include <vector>
 #include <sstream>
+#include <unordered_map>
+#include <stack>
+#include <queue>
 #include "ast.hpp"
 
 
-/**
- * @note: https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
- */
+const auto operation_dict = [] () -> std::unordered_map<Operation, std::string>
+{
+	return std::unordered_map<Operation, std::string>{
+		{Operation::Nop, "Nop"},
+		{Operation::Negation, "!"},
+		{Operation::Disjunction, "*"},
+		{Operation::Conjunction, "|"},
+		{Operation::Implication, ">"},
+		{Operation::Xor, "+"},
+		{Operation::Equivalent, "="}
+	};
+}();
+
+
+constexpr const std::int32_t op_priority[] = {0, 5, 3, 4, 1, 2, 2};
 std::int32_t priority(Operation operation)
 {
-	switch (operation)
-	{
-		case Operation::Negation:
-			return 5;
-		case Operation::Disjunction:
-			return 3;
-		case Operation::Conjunction:
-			return 4;
-		case Operation::Implication:
-			return 1;
-		case Operation::Xor:
-			return 2;
-		case Operation::Equivalent:
-			return 2;
-		default:
-		break;
-	}
-
-	return 0;
-}
-
-
-ASTNode::ASTNode(
-	std::int32_t var,
-	Operation op,
-	std::shared_ptr<ASTNode> left,
-	std::shared_ptr<ASTNode> right,
-	ASTNode *parent
-)	: var(var)
-	, op(op)
-	, left(std::move(left))
-	, right(std::move(right))
-	, parent(parent)
-{
-	// reset parent pointers
-	if (this->left != nullptr)
-	{
-		this->left->parent = this;
-	}
-	if (this->right != nullptr)
-	{
-		this->right->parent = this;
-	}
-}
-
-
-ASTNode::ASTNode(ASTNode &&other)
-	: var(other.var)
-	, op(other.op)
-	, left(std::move(other.left))
-	, right(std::move(other.right))
-	, parent(std::move(other.parent))
-{
-	// reset parent pointers
-	if (this->left != nullptr)
-	{
-		this->left->parent = this;
-	}
-	if (this->right != nullptr)
-	{
-		this->right->parent = this;
-	}
-
-	other.var = 0;
-	other.op = Operation::Nop;
-	other.left = nullptr;
-	other.right = nullptr;
-	other.parent = nullptr;
-}
-
-
-ASTNode &ASTNode::operator=(ASTNode &&other)
-{
-	if (&other != this)
-	{
-		var = other.var;
-		op = other.op;
-		left = std::move(other.left);
-		right = std::move(other.right);
-		parent = std::move(other.parent);
-
-		// reset parent pointers
-		if (left != nullptr)
-		{
-			left->parent = this;
-		}
-		if (right != nullptr)
-		{
-			right->parent = this;
-		}
-
-		other.var = 0;
-		other.op = Operation::Nop;
-		other.left = nullptr;
-		other.right = nullptr;
-		other.parent = nullptr;
-	}
-
-	return *this;
+	return op_priority[static_cast<std::int32_t>(operation)];
 }
 
 
 std::string ASTNode::to_string() const
 {
-	std::stringstream ss;
-	ss << this;
-	return ss.str();
-}
-
-
-std::shared_ptr<ASTNode> ASTNode::deepcopy() const
-{
-	std::shared_ptr<ASTNode> lhs;
-	std::shared_ptr<ASTNode> rhs;
-
-	if (left != nullptr)
-	{
-		lhs = left->deepcopy();
-	}
-	if (right != nullptr)
-	{
-		rhs = right->deepcopy();
-	}
-
-	return std::make_shared<ASTNode>(var, op, lhs, rhs);
-}
-
-
-std::ostream &operator<<(std::ostream &out, const ASTNode *node)
-{
-	if (node == nullptr)
-	{
-		return out;
-	}
-
-	const bool should_use_brackets = node->parent != nullptr && !node->is_leaf();
-	if (should_use_brackets)
-	{
-		out << "(";
-	}
-
-	out << node->left;
-	out << node->stringify();
-	out << node->right;
-
-	if (should_use_brackets)
-	{
-		out << ")";
-	}
-
-	return out;
-}
-
-
-std::ostream &operator<<(std::ostream &out, const std::shared_ptr<ASTNode> &node)
-{
-	if (node == nullptr)
-	{
-		return out;
-	}
-
-	const bool should_use_brackets = node->parent != nullptr && !node->is_leaf();
-	if (should_use_brackets)
-	{
-		out << "(";
-	}
-
-	out << node->left;
-	out << node->stringify();
-	out << node->right;
-
-	if (should_use_brackets)
-	{
-		out << ")";
-	}
-
-	return out;
-}
-
-
-std::int32_t ASTNode::depth() const
-{
 	if (is_leaf())
 	{
-		return 0;
+		// vars should not exeed 26 by abs value
+		std::string result = var < 0 ? "!" : "";
+		result.push_back(std::clamp<char>('a' + std::abs(var) - 1, 'a', 'z'));
+		return result;
 	}
 
-	return 1 + std::max(left->depth(), right->depth());
+	return operation_dict.at(op);
 }
 
 
-std::int32_t ASTNode::operations() const
+// TODO: use memorization variables to reduce getting to amortized O(1)
+std::size_t Expression::n_ops() const noexcept
 {
-	std::int32_t count = is_leaf() ? 0 : 1;
+	std::size_t c = 0;
 
-	std::function<void(const expression_t &)> traverse =
-	[&] (const expression_t &expression)
+	for (const auto &token : tokens)
 	{
-		if (expression == nullptr)
+		if (!token.is_leaf())
 		{
-			return;
+			++c;
 		}
+	}
 
-		if (expression->is_leaf())
-		{
-			return;
-		}
-
-		++count;
-		traverse(expression->left);
-		traverse(expression->right);
-	};
-
-	traverse(left);
-	traverse(right);
-	return count;
+	return c;
 }
 
 
-std::vector<std::int32_t> ASTNode::values() const
+// TODO: use memorization variables to reduce getting to amortized O(1)
+std::size_t Expression::n_vars() const noexcept
+{
+	std::size_t c = 0;
+
+	for (const auto &token : tokens)
+	{
+		if (token.is_leaf())
+		{
+			++c;
+		}
+	}
+
+	return c;
+}
+
+
+std::vector<std::int32_t> Expression::vars() const noexcept
 {
 	std::vector<std::int32_t> result;
+	result.reserve(n_vars());
 
-	std::function<void(const expression_t &)> traverse =
-	[&] (const expression_t &expression)
+	for (const auto &token : tokens)
 	{
-		if (expression == nullptr)
+		if (token.is_leaf())
 		{
-			return;
+			result.push_back(token.var);
 		}
-
-		if (expression->is_leaf())
-		{
-			result.push_back(expression->var);
-			return;
-		}
-
-		traverse(expression->left);
-		traverse(expression->right);
-	};
-
-	traverse(left);
-	traverse(right);
-
-	if (is_leaf())
-	{
-		result.push_back(var);
 	}
 
 	return result;
 }
 
 
-bool ASTNode::contains(const std::int32_t v) const
+bool Expression::contains(std::int32_t needle) const noexcept
 {
-	// questinable move ?
-	if (is_leaf())
+	for (const auto &token : tokens)
 	{
-		return var == v;
+		if (token == needle)
+		{
+			return true;
+		}
 	}
 
-	std::function<bool(const expression_t &)> traverse =
-	[&] (const expression_t &expression)
+	return false;
+}
+
+
+std::size_t Expression::left(std::size_t index) const noexcept
+{
+	return in_range(index) ? tokens[index].refs[1] : INVALID_INDEX;
+}
+
+
+std::size_t Expression::right(std::size_t index) const noexcept
+{
+	return in_range(index) ? tokens[index].refs[2] : INVALID_INDEX;
+}
+
+
+std::size_t Expression::parent(std::size_t index) const noexcept
+{
+	return in_range(index) ? tokens[index].refs[3] : INVALID_INDEX;
+}
+
+
+Expression Expression::subtree(std::size_t index) const noexcept
+{
+	std::vector<ASTNode> ast;
+
+	// no subtree
+	if (root().is_leaf())
 	{
-		if (expression == nullptr)
+		return {ast};
+	}
+
+	// reserve memory
+	ast.reserve(tokens.size());
+
+	// preorder traverse
+	std::queue<std::pair<ASTNode, std::size_t>> q;
+	q.push({left(index), INVALID_INDEX});
+	std::size_t order_index = 0;
+
+	while (!q.empty())
+	{
+		const auto &[node, parent_idx] = q.front();
+
+		// skip invalid nodes
+		if (node.id() == INVALID_INDEX)
 		{
-			return false;
+			continue;
 		}
 
-		if (expression->is_leaf())
+		// add current node to ast subtree
+		ast.emplace_back(
+			node.var,
+			node.op,
+			order_index,
+			order_index + 1,
+			order_index + 2,
+			parent_idx
+		);
+
+		// push nodes
+		q.emplace(left(node.id()), index);
+		q.emplace(right(node.id()), index);
+
+		q.pop();
+	}
+
+	return {ast};
+}
+
+
+std::ostream &operator<<(std::ostream &out, const Expression &expression)
+{
+	std::stack<ASTNode> st;
+	auto current = expression.root();
+
+	while (!st.empty() || current.id() != INVALID_INDEX)
+	{
+		// push left child onto stack and move to leftmost node
+		while (current.id() != INVALID_INDEX)
 		{
-			return expression->var == v;
+			st.push(current);
+			current = expression.left(current.id());
 		}
 
-		return traverse(expression->left) || traverse(expression->right);
-	};
+		// pop top node from stack and visit it
+		current = st.top();
+		st.pop();
 
-	return traverse(left) || traverse(right);
+		// Print the value of the popped node
+		out << current.to_string();
+
+		// move to right subtree
+		current = expression.right(current.id());
+	}
+
+	return out;
 }
