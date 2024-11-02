@@ -76,7 +76,7 @@ std::size_t Expression::n_ops() const noexcept
 {
 	std::size_t c = 0;
 
-	for (const auto &token : tokens)
+	for (const auto &token : tokens_)
 	{
 		if (!token.is_leaf())
 		{
@@ -93,7 +93,7 @@ std::size_t Expression::n_vars() const noexcept
 {
 	std::size_t c = 0;
 
-	for (const auto &token : tokens)
+	for (const auto &token : tokens_)
 	{
 		if (token.is_leaf())
 		{
@@ -110,7 +110,7 @@ std::vector<std::int32_t> Expression::vars() const noexcept
 	std::vector<std::int32_t> result;
 	result.reserve(n_vars());
 
-	for (const auto &token : tokens)
+	for (const auto &token : tokens_)
 	{
 		if (token.is_leaf())
 		{
@@ -124,7 +124,7 @@ std::vector<std::int32_t> Expression::vars() const noexcept
 
 bool Expression::contains(std::int32_t needle) const noexcept
 {
-	for (const auto &token : tokens)
+	for (const auto &token : tokens_)
 	{
 		if (token == needle)
 		{
@@ -138,27 +138,27 @@ bool Expression::contains(std::int32_t needle) const noexcept
 
 std::size_t Expression::left(std::size_t index) const noexcept
 {
-	return in_range(index) ? tokens[index].left() : INVALID_INDEX;
+	return in_range(index) ? tokens_[index].left() : INVALID_INDEX;
 }
 
 
 std::size_t Expression::right(std::size_t index) const noexcept
 {
-	return in_range(index) ? tokens[index].right() : INVALID_INDEX;
+	return in_range(index) ? tokens_[index].right() : INVALID_INDEX;
 }
 
 
 std::size_t Expression::parent(std::size_t index) const noexcept
 {
-	return in_range(index) ? tokens[index].parent() : INVALID_INDEX;
+	return in_range(index) ? tokens_[index].parent() : INVALID_INDEX;
 }
 
 
 void Expression::insert(std::size_t index, const Expression &expression, std::size_t side) noexcept
 {
-	if (tokens.size() == 0)
+	if (tokens_.size() == 0)
 	{
-		tokens = expression.tokens;
+		tokens_ = expression.tokens_;
 		return;
 	}
 
@@ -173,6 +173,7 @@ void Expression::insert(std::size_t index, const Expression &expression, std::si
 		return;
 	}
 
+	// function to update indices
 	auto update_index = [] (std::size_t index, std::size_t offset)
 	{
 		if (index == INVALID_INDEX)
@@ -183,27 +184,27 @@ void Expression::insert(std::size_t index, const Expression &expression, std::si
 		return index + offset;
 	};
 
-	// idea is to just add new array with updating indices
+	// idea is to just add new array with updated indices
 	std::size_t offset = n_tokens();
-	tokens[index].refs[side] = offset;
-	tokens.emplace_back(
-		expression.tokens[0].var,
-		expression.tokens[0].op,
+	tokens_[index].refs[side] = offset;
+	tokens_.emplace_back(
+		expression.tokens_[0].var,
+		expression.tokens_[0].op,
 		offset,
-		update_index(expression.tokens[0].refs[1], offset),
-		update_index(expression.tokens[0].refs[2], offset),
+		update_index(expression.tokens_[0].refs[1], offset),
+		update_index(expression.tokens_[0].refs[2], offset),
 		index
 	);
 
 	for (std::size_t i = 1; i < expression.n_tokens(); ++i)
 	{
-		tokens.emplace_back(
-			expression.tokens[i].var,
-			expression.tokens[i].op,
-			update_index(expression.tokens[i].refs[0], offset),
-			update_index(expression.tokens[i].refs[1], offset),
-			update_index(expression.tokens[i].refs[2], offset),
-			update_index(expression.tokens[i].refs[3], offset)
+		tokens_.emplace_back(
+			expression.tokens_[i].var,
+			expression.tokens_[i].op,
+			update_index(expression.tokens_[i].refs[0], offset),
+			update_index(expression.tokens_[i].refs[1], offset),
+			update_index(expression.tokens_[i].refs[2], offset),
+			update_index(expression.tokens_[i].refs[3], offset)
 		);
 	}
 }
@@ -211,9 +212,9 @@ void Expression::insert(std::size_t index, const Expression &expression, std::si
 
 void Expression::insert(std::size_t index, const ASTNode &node, std::size_t side) noexcept
 {
-	if (tokens.size() == 0)
+	if (tokens_.empty())
 	{
-		tokens.push_back(node);
+		tokens_.push_back(node);
 		return;
 	}
 
@@ -228,8 +229,8 @@ void Expression::insert(std::size_t index, const ASTNode &node, std::size_t side
 		return;
 	}
 
-	tokens[index].refs[side] = n_tokens();
-	tokens.emplace_back(
+	tokens_[index].refs[side] = n_tokens();
+	tokens_.emplace_back(
 		node.var,
 		node.op,
 		n_tokens(),
@@ -240,21 +241,27 @@ void Expression::insert(std::size_t index, const ASTNode &node, std::size_t side
 }
 
 
-void Expression::replace(std::size_t index, const Expression &expression) noexcept
+void Expression::replace(std::int32_t var, const Expression &expression) noexcept
 {
-	if (!in_range(index))
+	// find all occurrences
+	std::vector<std::int32_t> places;
+	for (const auto &token : tokens_)
 	{
-		return;
-	}
-	if (index == 0)
-	{
-                tokens = expression.tokens;
-		return;
+		if (token.var == var)
+		{
+			places.push_back(token.id());
+		}
 	}
 
-	const auto parent = tokens[index].parent();
-	const auto side = tokens[parent].refs[1] == index ? 1 : 2;
-	insert_inplace(parent, expression, side);
+	for (const auto &place : places)
+	{
+		// get parent
+		const auto parent = tokens_[place].parent();
+
+		// determine with which edge we connected (left or right)
+		const auto side = tokens_[parent].refs[1] == place ? 1 : 2;
+		insert(parent, expression, side);
+	}
 }
 
 
@@ -269,16 +276,17 @@ Expression Expression::subtree(std::size_t index) const noexcept
 	}
 
 	// reserve memory
-	ast.reserve(tokens.size());
+	ast.reserve(tokens_.size());
 
 	// bfs traverse
 	std::queue<std::pair<std::size_t, std::size_t>> q;
-	q.push({left(index), INVALID_INDEX});
+	std::unordered_map<std::size_t, std::size_t> remapping;
+	q.push({index, INVALID_INDEX});
 	std::size_t order_index = 0;
 
 	while (!q.empty())
 	{
-		const auto &[node_idx, parent_idx] = q.front();
+		const auto &[node_idx, parent_index] = q.front();
 
 		// skip invalid nodes
 		if (node_idx == INVALID_INDEX)
@@ -287,28 +295,46 @@ Expression Expression::subtree(std::size_t index) const noexcept
 			continue;
 		}
 
-		// update relation
-		if (parent_idx != INVALID_INDEX)
-		{
-			ast[parent_idx].refs[node_idx - parent_idx] = node_idx;
-		}
-
 		// add current node to ast subtree
 		ast.emplace_back(
-			tokens[node_idx].var,
-			tokens[node_idx].op,
+			tokens_[node_idx].var,
+			tokens_[node_idx].op,
 			order_index,
 			INVALID_INDEX,
 			INVALID_INDEX,
-			parent_idx
+			parent_index
 		);
 
+		// store mapping index to restore relations
+		remapping[order_index] = node_idx;
+
 		// push nodes
-		q.emplace(left(node_idx), index);
-		q.emplace(right(node_idx), index);
+		if (left(node_idx) != INVALID_INDEX)
+		{
+			q.emplace(left(node_idx), order_index);
+		}
+		if (right(node_idx)!= INVALID_INDEX)
+		{
+			q.emplace(right(node_idx), order_index);
+		}
 
 		++order_index;
 		q.pop();
+	}
+
+	// restore relations
+	for (auto &node : ast)
+	{
+		auto parent = node.parent();
+		if (parent == INVALID_INDEX)
+		{
+			continue;
+		}
+
+                // determine with which edge we connected (left or right)
+		auto old_node = remapping.at(node.id());
+		auto side = tokens_[tokens_[old_node].parent()].refs[1] == old_node ? 1 : 2;
+		ast[parent].refs[side] = node.id();
 	}
 
 	return {ast};
@@ -337,25 +363,25 @@ void Expression::negation_inplace(std::size_t index)
 			continue;
 		}
 
-		if (tokens[node_idx].is_leaf())
+		if (tokens_[node_idx].is_leaf())
 		{
-			tokens[node_idx].var *= -1;
+			tokens_[node_idx].var *= -1;
 			continue;
 		}
 
 		// inverse operation
-		tokens[node_idx].op = opposite(tokens[node_idx].op);
+		tokens_[node_idx].op = opposite(tokens_[node_idx].op);
 
 		// continue negation if required
-		if (tokens[node_idx].op == Operation::Implication ||
-			tokens[node_idx].op == Operation::Conjunction)
+		if (tokens_[node_idx].op == Operation::Implication ||
+			tokens_[node_idx].op == Operation::Conjunction)
 		{
-			q.push(tokens[node_idx].right());
+			q.push(tokens_[node_idx].right());
 		}
-		else if (tokens[node_idx].op == Operation::Disjunction)
+		else if (tokens_[node_idx].op == Operation::Disjunction)
 		{
-			q.push(tokens[node_idx].left());
-			q.push(tokens[node_idx].right());
+			q.push(tokens_[node_idx].left());
+			q.push(tokens_[node_idx].right());
 		}
 	}
 }
@@ -381,8 +407,8 @@ Expression contruct_expression(
 	expression.emplace_back(0, op, 0);
 
 	Expression new_expression(std::move(expression));
-	new_expression.insert_inplace(0, lhs, 1);
-	new_expression.insert_inplace(0, rhs, 2);
+	new_expression.insert(0, lhs, 1);
+	new_expression.insert(0, rhs, 2);
 	return new_expression;
 }
 

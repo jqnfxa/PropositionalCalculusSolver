@@ -86,39 +86,39 @@ struct ASTNode
 class Expression
 {
 private:
-	std::vector<ASTNode> tokens;
+	std::vector<ASTNode> tokens_;
 
 	inline bool in_range(std::size_t index) const noexcept
 	{
-		return index < tokens.size();
+		return index < tokens_.size();
 	}
 
 	inline bool equals(const Expression &other) const noexcept
 	{
-		return std::ranges::equal(tokens, other.tokens);
+		return std::ranges::equal(tokens_, other.tokens_);
 	}
 public:
-        Expression() : tokens{} {}
-	Expression(std::vector<ASTNode> tokens) : tokens(std::move(tokens)) {}
-	Expression(const Expression &other) : tokens(other.tokens) {}
+        Expression() : tokens_{} {}
+	Expression(std::vector<ASTNode> tokens_) : tokens_(std::move(tokens_)) {}
+	Expression(const Expression &other) : tokens_(other.tokens_) {}
 
 	// getters
-	inline std::size_t n_tokens() const noexcept { return tokens.size(); }
+	inline std::size_t n_tokens() const noexcept { return tokens_.size(); }
 	std::size_t n_ops() const noexcept;
 	std::size_t n_vars() const noexcept;
 	std::vector<std::int32_t> vars() const noexcept;
 	bool contains(std::int32_t needle) const noexcept;
 
 	// tree getters
-	inline const ASTNode &root() const { return tokens[0]; }
-	inline ASTNode &root() { return tokens[0]; }
-	inline const ASTNode &operator[](std::size_t idx) const { return tokens[idx]; }
+	inline const ASTNode &root() const { return tokens_[0]; }
+	inline ASTNode &root() { return tokens_[0]; }
+	inline const ASTNode &operator[](std::size_t idx) const { return tokens_[idx]; }
 	std::size_t left(std::size_t index) const noexcept;
 	std::size_t right(std::size_t index) const noexcept;
 	std::size_t parent(std::size_t index) const noexcept;
 	void insert(std::size_t index, const Expression &expression, std::size_t side = 1) noexcept;
 	void insert(std::size_t index, const ASTNode &node, std::size_t side = 1) noexcept;
-	void replace(std::size_t index, const Expression &expression) noexcept;
+	void replace(std::int32_t var, const Expression &expression) noexcept;
 
 	// get subtree down from index
 	Expression subtree(std::size_t index) const noexcept;
