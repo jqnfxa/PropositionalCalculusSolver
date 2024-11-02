@@ -116,8 +116,8 @@ public:
 	std::size_t left(std::size_t index) const noexcept;
 	std::size_t right(std::size_t index) const noexcept;
 	std::size_t parent(std::size_t index) const noexcept;
-	void insert_inplace(std::size_t index, const Expression &expression, std::size_t side = 1) noexcept;
-	void insert_inplace(std::size_t index, const ASTNode &node, std::size_t side = 1) noexcept;
+	void insert(std::size_t index, const Expression &expression, std::size_t side = 1) noexcept;
+	void insert(std::size_t index, const ASTNode &node, std::size_t side = 1) noexcept;
 	void replace(std::size_t index, const Expression &expression) noexcept;
 
 	// get subtree down from index

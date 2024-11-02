@@ -154,7 +154,7 @@ std::size_t Expression::parent(std::size_t index) const noexcept
 }
 
 
-void Expression::insert_inplace(std::size_t index, const Expression &expression, std::size_t side) noexcept
+void Expression::insert(std::size_t index, const Expression &expression, std::size_t side) noexcept
 {
 	if (tokens.size() == 0)
 	{
@@ -209,7 +209,7 @@ void Expression::insert_inplace(std::size_t index, const Expression &expression,
 }
 
 
-void Expression::insert_inplace(std::size_t index, const ASTNode &node, std::size_t side) noexcept
+void Expression::insert(std::size_t index, const ASTNode &node, std::size_t side) noexcept
 {
 	if (tokens.size() == 0)
 	{
