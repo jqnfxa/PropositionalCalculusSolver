@@ -387,7 +387,7 @@ void Expression::negation_inplace(std::size_t index)
 }
 
 
-Expression Expression::negation()
+Expression Expression::negation() const
 {
 	Expression new_expression{*this};
 	new_expression.negation_inplace(0);

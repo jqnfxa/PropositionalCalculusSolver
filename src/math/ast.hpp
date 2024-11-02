@@ -101,6 +101,7 @@ public:
         Expression() : tokens_{} {}
 	Expression(std::vector<ASTNode> tokens_) : tokens_(std::move(tokens_)) {}
 	Expression(const Expression &other) : tokens_(other.tokens_) {}
+	Expression &operator=(const Expression &other) { tokens_ = other.tokens_; }
 
 	// getters
 	inline std::size_t n_tokens() const noexcept { return tokens_.size(); }
@@ -136,7 +137,7 @@ public:
 
 	// inplace negation of subtree
 	void negation_inplace(std::size_t index = 0);
-	Expression negation();
+	Expression negation() const;
 };
 
 
