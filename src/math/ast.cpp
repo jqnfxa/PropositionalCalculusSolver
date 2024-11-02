@@ -156,7 +156,19 @@ std::size_t Expression::parent(std::size_t index) const noexcept
 
 void Expression::insert_inplace(std::size_t index, const Expression &expression, std::size_t side) noexcept
 {
+	if (tokens.size() == 0)
+	{
+		tokens = expression.tokens;
+		return;
+	}
+
 	if (!in_range(index))
+	{
+		return;
+	}
+
+	// not left or right?
+	if (side != 1 && side != 2)
 	{
 		return;
 	}
@@ -171,6 +183,7 @@ void Expression::insert_inplace(std::size_t index, const Expression &expression,
 		return index + offset;
 	};
 
+	// idea is to just add new array with updating indices
 	std::size_t offset = n_tokens();
 	tokens[index].refs[side] = offset;
 	tokens.emplace_back(
@@ -195,11 +208,53 @@ void Expression::insert_inplace(std::size_t index, const Expression &expression,
 	}
 }
 
-Expression Expression::insert(std::size_t index, const Expression &expression) const noexcept
+
+void Expression::insert_inplace(std::size_t index, const ASTNode &node, std::size_t side) noexcept
 {
-	Expression new_expression{expression};
-	new_expression.insert_inplace(index, expression);
-	return new_expression;
+	if (tokens.size() == 0)
+	{
+		tokens.push_back(node);
+		return;
+	}
+
+	if (!in_range(index))
+	{
+		return;
+	}
+
+	// not left or right?
+	if (side != 1 && side != 2)
+	{
+		return;
+	}
+
+	tokens[index].refs[side] = n_tokens();
+	tokens.emplace_back(
+		node.var,
+		node.op,
+		n_tokens(),
+		INVALID_INDEX,
+		INVALID_INDEX,
+		index
+	);
+}
+
+
+void Expression::replace(std::size_t index, const Expression &expression) noexcept
+{
+	if (!in_range(index))
+	{
+		return;
+	}
+	if (index == 0)
+	{
+                tokens = expression.tokens;
+		return;
+	}
+
+	const auto parent = tokens[index].parent();
+	const auto side = tokens[parent].refs[1] == index ? 1 : 2;
+	insert_inplace(parent, expression, side);
 }
 
 
