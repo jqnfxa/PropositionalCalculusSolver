@@ -8,7 +8,7 @@
 /**
  * @brief Determine whether `A` is same as `B`
  */
-bool is_same_expression(const expression_t &A, const expression_t &B);
+bool is_same_expression(const Expression &A, const Expression &B);
 
 
 /**
@@ -20,7 +20,7 @@ bool is_same_expression(const expression_t &A, const expression_t &B);
  * 4. A ⊢ B > A
  * 5. A ⊢ !A > B
  */
-bool is_follows(const expression_t &A, const expression_t &B);
+bool is_follows(const Expression &A, const Expression &B);
 
 
 /**
@@ -32,8 +32,8 @@ bool is_follows(const expression_t &A, const expression_t &B);
  */
 std::ostream &deduction_theorem_decomposition(
 	std::ostream &out,
-	std::vector<expression_t> &left_side,
-	expression_t &target
+	std::vector<Expression> &left_side,
+	Expression &target
 );
 
 
@@ -44,26 +44,12 @@ std::ostream &deduction_theorem_decomposition(
  */
 std::ostream &conjunction_splitting_rule(
 	std::ostream &out,
-	std::vector<expression_t> &hypotheses
+	std::vector<Expression> &hypotheses
 );
 
-/**
- * @brief standartization of expression
- * @note rules:
- * 1. A | B <=> !A > B
- */
-void standartize(expression_t &expression);
-
 
 /**
- * @brief normalization of expression
- * @note converting expression to use minimum positive nums (if possible)
- */
-void normalize(expression_t &expression);
-
-
-/**
- * @brief tries to produce rules to unify B to A with restrictions
+ * @brief tries to produce rules to unify rhs to lhs with restrictions
  * @note restrictions:
  * let's assume `a` is variable
  * let's assume `b` is variable
@@ -75,22 +61,20 @@ void normalize(expression_t &expression);
  *
  * @return unification rules, if map is empty, then no unification is possible
  */
-std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A, const expression_t &B);
+std::unordered_map<std::int32_t, Expression> unification(
+	const Expression &lhs,
+	const Expression &rhs
+);
 
 
 /**
- * @brief unify A with specific rules
+ * @brief unify expression with specific rules
  *
  * @return unificated B or nullptr if no unification is possible
  */
-void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t> &rules);
-
-
-/**
- * @brief Modes Ponens rule
- *
- * @return A, A > B ⊢ B
- */
-expression_t mp(const expression_t &A, const expression_t &B, bool mut_b = true);
+void unify(
+	Expression &expression,
+	const std::unordered_map<std::int32_t, Expression> &rules
+);
 
 #endif // HELPER_HPP

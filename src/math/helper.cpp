@@ -1,140 +1,64 @@
 #include <set>
+#include <unordered_map>
 #include <ostream>
+#include <functional>
 #include "helper.hpp"
 
 
-expression_t negation(const expression_t &expression)
+bool is_same_expression(const Expression &lhs, const Expression &rhs)
 {
-	if (expression == nullptr)
+	// has different operation?
+	if (lhs.root().op != rhs.root().op)
 	{
-		return nullptr;
+		// not oposite so give up
+		if (lhs.root().op != opposite(rhs.root().op))
+		{
+			return false;
+		}
+
+		return is_same_expression(lhs, rhs.negation());
 	}
 
-	// simple case: just one letter
-	// notice that parent is lost
-	if (expression->is_leaf())
-	{
-		return std::make_shared<ASTNode>(-expression->var);
-	}
-
-	auto new_expression = expression->deepcopy();
-
-	// `xor` changes to `equivalent` and wise versa
-	if (expression->op == Operation::Xor)
-	{
-		new_expression->op = Operation::Equivalent;
-		return new_expression;
-	}
-	if (expression->op == Operation::Equivalent)
-	{
-		new_expression->op = Operation::Xor;
-		return new_expression;
-	}
-
-	if (expression->op == Operation::Disjunction)
-	{
-		// negation of disjunction is conjunction
-		new_expression->op = Operation::Conjunction;
-		new_expression->left = negation(new_expression->left);
-		new_expression->right = negation(new_expression->right);
-		new_expression->left->parent = new_expression.get();
-		new_expression->right->parent = new_expression.get();
-
-		return new_expression;
-	}
-
-	if (expression->op == Operation::Conjunction)
-	{
-		// negation of disjunction is conjunction
-		new_expression->op = Operation::Disjunction;
-		new_expression->left = negation(new_expression->left);
-		new_expression->right = negation(new_expression->right);
-		new_expression->left->parent = new_expression.get();
-		new_expression->right->parent = new_expression.get();
-
-		return new_expression;
-	}
-
-	// Implication
-	// negation of implication is conjunction
-	new_expression->op = Operation::Conjunction;
-	new_expression->left = new_expression->left;
-	new_expression->right = negation(new_expression->right);
-	new_expression->left->parent = new_expression.get();
-	new_expression->right->parent = new_expression.get();
-
-	return new_expression;
-}
-
-
-bool is_same_expression(const expression_t &A, const expression_t &B)
-{
-	const bool ea = A == nullptr;
-	const bool eb = B == nullptr;
-
-	// both expressions must be NULL at same time or valid at same time
-	if (ea ^ eb)
-	{
-		return false;
-	}
-
-	// two empty expressions are equivalent
-	if (ea && eb)
+	// may be they are completely equal ?
+	if (lhs == rhs)
 	{
 		return true;
 	}
 
-	// both expressions must be leaf or not leaf at same time
-	if (A->is_leaf() ^ B->is_leaf())
+	// for non-commutative operations expressions are not equal
+	if (!is_commutative(lhs.root().op))
 	{
 		return false;
 	}
 
-	// compare variables
-	if (A->is_leaf() && B->is_leaf())
-	{
-		return A->var == B->var;
-	}
-
-	// compare operation
-	if (A->op != B->op)
-	{
-		return false;
-	}
-
-	if (A->op == Operation::Implication)
-	{
-		// check both subtrees
-		return is_same_expression(A->left, B->left) &&
-			is_same_expression(A->right, B->right);
-	}
-
-	// all other operations are commutative
-	return (is_same_expression(A->left, B->left) && is_same_expression(A->right, B->right)) ||
-		(is_same_expression(A->right, B->left) && is_same_expression(A->left, B->right));
+	// compare left subtree of A with right subtree of B
+	return is_same_expression(lhs.subtree(lhs.left(0)), rhs.subtree(rhs.right(0)));
 }
 
 
-bool is_follows(const expression_t &A, const expression_t &B)
+bool is_follows(const Expression &lhs, const Expression &rhs)
 {
 	// rule 1
-	if (is_same_expression(A, B))
+	if (is_same_expression(lhs, rhs))
 	{
 		return true;
 	}
 
+	const auto left = rhs.subtree(rhs.left(0));
+	const auto right = rhs.subtree(rhs.right(0));
+
 	// rule 2 and rule 3
-	if (B->op == Operation::Disjunction)
+	if (rhs.root().op == Operation::Disjunction)
 	{
-                return is_same_expression(A, B->left) ||
-			is_same_expression(A, B->right);
+                return is_same_expression(lhs, left) ||
+			is_same_expression(lhs, right);
 	}
 
 	// rule 4 and rule 5
-	if (B->op == Operation::Implication)
+	if (rhs.root().op == Operation::Implication)
 	{
-		return is_same_expression(A, B->right) ||
-			is_same_expression(A, negation(B->left));
+		return is_same_expression(lhs, right) ||
+			is_same_expression(lhs, left.negation());
 	}
 
 	// give up
@@ -144,24 +68,19 @@ bool is_follows(const expression_t &A, const expression_t &B)
 
 std::ostream &deduction_theorem_decomposition(
 	std::ostream &out,
-	std::vector<expression_t> &left_side,
-	expression_t &target
+	std::vector<Expression> &left_side,
+	Expression &target
 )
 {
-	while (target != nullptr &&
-		target->op == Operation::Implication)
+	while (target.root().op == Operation::Implication)
 	{
 		out << "(deduction theorem): " << target << '\n';
 
-		// remove relations
-		target->left->parent = nullptr;
-		target->right->parent = nullptr;
-
 		// add left subexpression
-		left_side.push_back(target->left);
+		left_side.push_back(target.subtree(target.left(0)));
 
 		// traverse to right subexpression
-		target = target->right;
+		target = target.subtree(target.right(0));
 	}
 
 	return out;
@@ -170,20 +89,20 @@ std::ostream &deduction_theorem_decomposition(
 
 std::ostream &conjunction_splitting_rule(
 	std::ostream &out,
-	std::vector<expression_t> &hypotheses
+	std::vector<Expression> &hypotheses
 )
 {
-	std::vector<expression_t> new_hypotheses;
+	std::vector<Expression> new_hypotheses;
 
 	for (const auto &hypothesis : hypotheses)
 	{
 		// decompose A*B into A,B
-		if (hypothesis->op == Operation::Conjunction)
+		if (hypothesis.root().op == Operation::Conjunction)
 		{
 			out << "(conjunction splitting rule): " << hypothesis << '\n';
 
-			new_hypotheses.emplace_back(hypothesis->left->deepcopy());
-			new_hypotheses.emplace_back(hypothesis->right->deepcopy());
+			new_hypotheses.emplace_back(hypothesis.subtree(hypothesis.left(0)));
+			new_hypotheses.emplace_back(hypothesis.subtree(hypothesis.right(0)));
 		}
 	}
 
@@ -196,152 +115,46 @@ std::ostream &conjunction_splitting_rule(
 }
 
 
-void standartize(expression_t &expression)
+std::unordered_map<std::int32_t, Expression> unification(
+	const Expression &lhs,
+	const Expression &rhs
+)
 {
-	if (expression == nullptr)
-	{
-		return;
-	}
-
-	if (expression->is_leaf())
-	{
-		return;
-	}
-
-	if (expression->op == Operation::Disjunction)
-	{
-		expression->op = Operation::Implication;
-		expression->left = std::move(negation(expression->left));
-		expression->left->parent = expression.get();
-	}
-}
-
-
-void normalize(expression_t &expression)
-{
-	if (expression == nullptr)
-	{
-		return;
-	}
-
-	auto values = expression->values();
-	std::unordered_map<std::int32_t, std::int32_t> remapping;
-	std::int32_t new_variable = 1;
-
-	for (auto &value : values)
-	{
-		value = std::abs(value);
-	}
-
-	for (const auto &value : values)
-	{
-		if (remapping.contains(value))
-		{
-			continue;
-		}
-
-		remapping[value] = new_variable;
-		++new_variable;
-	}
-
-	// update expression tree
-	std::function<void(expression_t &)> traverse = [&] (expression_t &e)
-	{
-		if (e == nullptr)
-		{
-			return;
-		}
-
-		if (e->is_leaf())
-		{
-			auto sign = e->var < 0 ? -1 : 1;
-			e->var = sign * remapping.at(std::abs(e->var));
-		}
-
-		traverse(e->left);
-		traverse(e->right);
-	};
-
-	traverse(expression);
-}
-
-
-std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A, const expression_t &B)
-{
-	if (A == nullptr || B == nullptr)
-	{
-		return {};
-	}
-
-	// idea is to traverse both trees and store which nodes from B should be replaced
-	std::unordered_map<std::int32_t, expression_t> replacements;
+	// idea is to traverse both trees and store which nodes from `rhs` should be replaced
+	std::unordered_map<std::int32_t, Expression> replacements;
 	bool unifiable = true;
 
-	std::function<void(const expression_t &, const expression_t &)> traverse =
-	[&] (const expression_t &a, const expression_t &b)
+	std::function<void(std::size_t, std::size_t, const Expression &, const Expression &)> traverse =
+	[&] (std::size_t i, std::size_t j, const Expression &a, const Expression &b)
 	{
 		if (!unifiable)
 		{
 			return;
 		}
 
-		const bool is_valid_a = a != nullptr;
-		const bool is_valid_b = b != nullptr;
-
-		if (!is_valid_a && !is_valid_b)
+		if (i == INVALID_INDEX || j == INVALID_INDEX)
 		{
 			return;
 		}
 
-		if (is_valid_a ^ is_valid_b)
+		if (b.root().is_leaf())
 		{
-			unifiable = false;
+			replacements[b.root().var] = a;
 			return;
-		}
-
-		const bool is_leaf_a = a->is_leaf();
-		const bool is_leaf_b = b->is_leaf();
-
-		if (is_leaf_a ^ is_leaf_b)
-		{
-			// we can't unify ASTNode to single variable
-			if (is_leaf_a)
-			{
-				unifiable = false;
-				return;
-			}
-			if (is_leaf_b)
-			{
-				// rule is broke!
-				/*if (a->contains(b->var))
-				{
-					unifiable = false;
-					return;
-				}*/
-
-				replacements[b->var] = std::move(a->deepcopy());
-			}
-		}
-		if (is_leaf_a && is_leaf_b)
-		{
-			if (a->var != b->var)
-			{
-				replacements[b->var] = std::move(a->deepcopy());
-			}
 		}
 
 		// operation must be the same
-		if (a->op != b->op)
+		if (a.root().op != b.root().op)
 		{
 			unifiable = false;
 			return;
 		}
 
-		traverse(a->left, b->left);
-		traverse(a->right, b->right);
+		traverse(a.left(i), b.left(j), a, b);
+		traverse(a.right(i), b.right(j), a, b);
 	};
 
-	traverse(A, B);
+	traverse(0, 0, lhs, rhs);
 
 	if (!unifiable)
 	{
@@ -352,66 +165,10 @@ std::unordered_map<std::int32_t, expression_t> unification(const expression_t &A
 }
 
 
-void unify(expression_t &A, const std::unordered_map<std::int32_t, expression_t> &rules)
+void unify(Expression &expression, const std::unordered_map<std::int32_t, Expression> &rules)
 {
-	std::function<void(expression_t &)> apply_modifications =
-	[&] (expression_t &expression)
+	for (const auto &[var, replacement] : rules)
 	{
-		if (expression == nullptr)
-		{
-			return;
-		}
-
-		if (expression->is_leaf() && rules.contains(expression->var))
-		{
-			auto parent = expression->parent;
-			expression = rules.at(expression->var)->deepcopy();
-			expression->parent = parent;
-			return;
-		}
-
-		apply_modifications(expression->left);
-		apply_modifications(expression->right);
-	};
-
-	apply_modifications(A);
-}
-
-
-/**
- * @brief Modes Ponens rule
- *
- * @return A, A > B ⊢ B
- */
-expression_t mp(const expression_t &A, const expression_t &B, bool mut_b)
-{
-	if (A == nullptr || B == nullptr)
-	{
-		return nullptr;
+		expression.replace(var, replacement);
 	}
-
-	if (B->is_leaf())
-	{
-		return nullptr;
-	}
-
-	if (is_same_expression(A, B->left))
-	{
-		return B->right->deepcopy();
-	}
-
-	if (!mut_b)
-	{
-		return nullptr;
-	}
-
-	auto copy = B->deepcopy();
-	const auto rules = unification(A, copy->left);
-	if (rules.empty())
-	{
-		return nullptr;
-	}
-
-	unify(copy, rules);
-	return copy->right;
 }
