@@ -138,6 +138,7 @@ public:
 	// inplace negation of subtree
 	void negation_inplace(std::size_t index = 0);
 	Expression negation() const;
+	std::string to_string() const;
 };
 
 

@@ -395,6 +395,14 @@ Expression Expression::negation() const
 }
 
 
+std::string Expression::to_string() const
+{
+	std::ostringstream oss;
+	oss << *this;
+	return oss.str();
+}
+
+
 Expression contruct_expression(
 	const Expression &lhs,
 	Operation op,
