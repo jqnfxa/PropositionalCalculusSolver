@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cassert>
+#include <unordered_map>
 #include "./math/ast.hpp"
 #include "./parser/parser.hpp"
 
@@ -46,16 +47,16 @@ void test_parser() {
 	std::string consecutive_string = "(a+!b)|(a+!b)";
 	std::string test_string = "(a+!b)";
 	std::string a_and_not_b = "(a+!b)";
-	std::string conjuction_string = "|";
+	std::string disjunction_string = "|";
 	std::string closing = "";
 
 	for (int i = 0; i < 11; ++i) {
-		consecutive_string = consecutive_string + conjuction_string + a_and_not_b;
-		test_string = test_string + conjuction_string + "(" + a_and_not_b;
+		consecutive_string = consecutive_string + disjunction_string + a_and_not_b;
+		test_string = test_string + disjunction_string + "(" + a_and_not_b;
 		closing += ")";
 	}
 
-	test_string += conjuction_string + a_and_not_b;
+	test_string += disjunction_string + a_and_not_b;
 	test_string += closing;
 
 	auto consecutive_expression = ExpressionParser(consecutive_string).parse();
@@ -75,11 +76,55 @@ void test_parser() {
     std::cout << "Test consecutive nodes passed." << std::endl;
 }
 
+void test_alternating_operations() {
+	std::string consecutive_string = "a";
+	// std::string test_string = "a";
+	std::string a = "a";
+
+	std::unordered_map<int, std::string> op_map=
+    {
+        {0, "|"},
+        {1, "*"},
+        {2, "+"},
+		{3, ">"},
+        {4, "="}
+    };
+
+	std::string closing = "";
+
+	for (int i = 0; i < 10; ++i) {
+
+		consecutive_string = consecutive_string + op_map[i % 5] + a;
+
+		// test_string = test_string + conjuction_string + "(" + a_and_not_b;
+		closing += ")";
+	}
+
+	// test_string += conjuction_string + a_and_not_b;
+	// test_string += closing;
+
+	auto alternating_expression = ExpressionParser(consecutive_string).parse();
+
+	std::cout << alternating_expression << std::endl;
+
+	assert(alternating_expression.n_ops() == 10);
+	assert(alternating_expression.n_vars() == 11);
+	assert(alternating_expression.n_tokens() == 21);
+
+	// std::cout << test_string << std::endl;
+	// std::cout << consecutive_expression << std::endl;
+
+	// test_expression_to_string(consecutive_expression, test_string);
+
+    std::cout << "Test alternating operations passed." << std::endl;
+}
+
 
 
 int main() {
     test_creation_and_to_string();
     test_parser();
+	test_alternating_operations();
 
     std::cout << "All tests passed." << std::endl;
     return 0;
