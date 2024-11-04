@@ -101,7 +101,11 @@ public:
         Expression() : tokens_{} {}
 	Expression(std::vector<ASTNode> tokens_) : tokens_(std::move(tokens_)) {}
 	Expression(const Expression &other) : tokens_(other.tokens_) {}
-	Expression &operator=(const Expression &other) { tokens_ = other.tokens_; }
+	Expression &operator=(const Expression &other)
+	{
+		tokens_ = other.tokens_;
+		return *this;
+	}
 
 	// getters
 	inline std::size_t n_tokens() const noexcept { return tokens_.size(); }

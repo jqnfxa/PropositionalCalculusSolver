@@ -60,6 +60,13 @@ void ExpressionParser::construct_node()
 
 	if (operands.size() < 2 || operations.size() < 1)
 	{
+		if (operations.top() == Token::OpenBracket ||
+			operations.top() == Token::CloseBracket)
+		{
+			throw std::runtime_error("incorrect parentheses");
+		}
+
+		throw std::runtime_error("something went wrong in construct node");
 		return;
 	}
 
