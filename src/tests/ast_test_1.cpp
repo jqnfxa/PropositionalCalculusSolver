@@ -1,8 +1,8 @@
 #include <iostream>
 #include <cassert>
 #include <unordered_map>
-#include "./math/ast.hpp"
-#include "./parser/parser.hpp"
+#include "../math/ast.hpp"
+#include "../parser/parser.hpp"
 
 
 void test_expression_to_string(const Expression &expr, const std::string &expected) {
@@ -13,7 +13,7 @@ void test_expression_to_string(const Expression &expr, const std::string &expect
 void test_creation_and_to_string() {
     ASTNode node_a(1);
     ASTNode node_b(2);
-    ASTNode node_c(3);  
+    ASTNode node_c(3);
 
     Expression expr_a({node_a});
     Expression expr_b({node_b});
