@@ -120,6 +120,7 @@ public:
 	// construction
 	Expression();
 	Expression(std::string_view expression);
+	Expression(Term term);
 	Expression(const Expression &other);
 	Expression(Expression &&other);
 	Expression &operator=(const Expression &other);
@@ -142,6 +143,7 @@ public:
 
 
 	void negation(std::size_t idx = 0);
+	Expression &replace(std::size_t idx, const Expression &expression);
 	static Expression negation(const Expression &expression);
 
 
