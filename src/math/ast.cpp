@@ -9,148 +9,296 @@
 #include "ast.hpp"
 
 
-const auto operation_dict = [] () -> std::unordered_map<Operation, std::string>
+const auto operation_dict = [] () -> std::unordered_map<operation_t, std::string>
 {
-	return std::unordered_map<Operation, std::string>{
-		{Operation::Nop, "Nop"},
-		{Operation::Negation, "!"},
-		{Operation::Disjunction, "|"},
-		{Operation::Conjunction, "*"},
-		{Operation::Implication, ">"},
-		{Operation::Xor, "+"},
-		{Operation::Equivalent, "="}
+	return std::unordered_map<operation_t, std::string>{
+		{operation_t::Nop, "Nop"},
+		{operation_t::Negation, "!"},
+		{operation_t::Disjunction, "|"},
+		{operation_t::Conjunction, "*"},
+		{operation_t::Implication, ">"},
+		{operation_t::Xor, "+"},
+		{operation_t::Equivalent, "="}
 	};
 }();
 
 
-const auto opposite_operation = [] () -> std::unordered_map<Operation, Operation>
+const auto opposite_operation = [] () -> std::unordered_map<operation_t, operation_t>
 {
-	return std::unordered_map<Operation, Operation>{
-		{Operation::Nop, Operation::Nop},
-		{Operation::Negation, Operation::Negation},
-		{Operation::Disjunction, Operation::Conjunction},
-		{Operation::Conjunction, Operation::Implication},
-		{Operation::Implication, Operation::Conjunction},
-		{Operation::Xor, Operation::Equivalent},
-		{Operation::Equivalent, Operation::Xor}
+	return std::unordered_map<operation_t, operation_t>{
+		{operation_t::Nop, operation_t::Nop},
+		{operation_t::Negation, operation_t::Negation},
+		{operation_t::Disjunction, operation_t::Conjunction},
+		{operation_t::Conjunction, operation_t::Implication},
+		{operation_t::Implication, operation_t::Conjunction},
+		{operation_t::Xor, operation_t::Equivalent},
+		{operation_t::Equivalent, operation_t::Xor}
 	};
 }();
 
 
-bool is_commutative(Operation operation)
+operation_t opposite(operation_t operation_t)
 {
-	// operation: ?, !, >, |, *, +, =
-	// commut.  : 0, 0, 0, 1, 1, 1, 1
-	// index    : 0, 1, 2, 3, 4, 5, 6
-	return static_cast<std::int32_t>(operation) > 2;
+	return opposite_operation.at(operation_t);
 }
 
 
-Operation opposite(Operation operation)
-{
-	return opposite_operation.at(operation);
-}
+Term::Term(term_t type, operation_t op, value_t value) noexcept
+	: type(type)
+	, op(op)
+	, value(value)
+{}
 
 
-std::string ASTNode::to_string() const
+std::string Term::to_string() const
 {
-	if (is_leaf())
+	std::stringstream representation;
+
+	if (type == term_t::None)
 	{
-		if (std::abs(var) == 0 || std::abs(var) > 26)
-		{
-			return "Nan";
-		}
-
-		// vars should not exeed 26 by abs value
-		std::string result = var < 0 ? "!" : "";
-		result.push_back(std::clamp<char>('a' + std::abs(var) - 1, 'a', 'z'));
-		return result;
+		representation << "None";
+		return representation.str();
 	}
 
-	return operation_dict.at(op);
-}
-
-
-// TODO: use memorization variables to reduce getting to amortized O(1)
-std::size_t Expression::n_ops() const noexcept
-{
-	std::size_t c = 0;
-
-	for (const auto &token : tokens_)
+	if (type == term_t::Function)
 	{
-		if (!token.is_leaf())
-		{
-			++c;
-		}
+		representation << operation_dict.at(op);
 	}
-
-	return c;
-}
-
-
-// TODO: use memorization variables to reduce getting to amortized O(1)
-std::size_t Expression::n_vars() const noexcept
-{
-	std::size_t c = 0;
-
-	for (const auto &token : tokens_)
+	else
 	{
-		if (token.is_leaf())
+		if (op == operation_t::Negation)
 		{
-			++c;
+			representation << '!';
+		}
+
+		if (type == term_t::Constant)
+		{
+			char suitable_constant = std::abs(var) - 1 + 'a';
+			representation << suitable_constant;
+		}
+		else
+		{
+			// TODO: think what if var value > 9 ?
+			representation << std::abs(var);
 		}
 	}
 
-	return c;
+	return representation.str();
 }
 
 
-std::vector<std::int32_t> Expression::vars() const noexcept
-{
-	std::vector<std::int32_t> result;
-	result.reserve(n_vars());
+Expression::Expression() = default;
 
-	for (const auto &token : tokens_)
+
+Expression::Expression(std::string_view expression)
+{
+	// call of parser
+}
+
+
+Expression(const Expression &other) : nodes_(other.nodes_)
+{}
+
+
+Expression(Expression &&other) : nodes_(std::move(other.nodes_))
+{}
+
+
+Expression &Expression::operator=(const Expression &other)
+{
+	if (*this == other)
 	{
-		if (token.is_leaf())
+		return *this;
+	}
+
+	nodes_ = other.nodes_;
+	return *this;
+}
+
+
+Expression &Expression::operator=(Expression &&other)
+{
+	if (*this == other)
+	{
+		return *this;
+	}
+
+	nodes_ = std::move(other.nodes_);
+	return *this;
+}
+
+
+std::size_t Expression::size() const noexcept
+{
+	return nodes_.size();
+}
+
+
+bool Expression::empty() const noexcept
+{
+	return nodes_.empty();
+}
+
+
+std::ostream &operator<<(std::ostream &out) const
+{
+	if (empty())
+	{
+		return out << "empty";
+	}
+
+	std::stack<Relation> stack;
+        Relation current = subtree(0);
+
+	while (current.self() != INVALID_INDEX || !stack.empty())
+	{
+		// go as far left as possible
+		while (current)
 		{
-			result.push_back(token.var);
+			stack.push(current);
+			current = subtree(current.left());
+		}
+
+		// backtrack and print
+		current = stack.top();
+		stack.pop();
+
+		// print brackets
+		if (has_left(current.self()) && has_right(current.self()))
+		{
+			out << "(";
+		}
+
+		out << nodes_[current.self()].term.to_string();
+
+		// print brackets
+		if (has_left(current.self()) && has_right(current.self()))
+		{
+			out << ")";
+		}
+
+		// move to right subtree
+		current = subtree(current.right());
+        }
+
+	return out;
+}
+
+
+std::string Expression::to_string() const noexcept
+{
+	std::ostringstream representation;
+	representation << *this;
+        return representation.str();
+}
+
+
+const Relation &Expression::subtree(std::size_t idx) const noexcept
+{
+	return in_range(idx) ? nodes_[idx].rel : {};
+}
+
+
+bool Expression::has_left(std::size_t idx) const noexcept
+{
+	return in_range(idx) ? false : in_range(nodes_[idx].rel.left());
+}
+
+
+bool Expression::has_right(std::size_t idx) const noexcept
+{
+	return in_range(idx) ? false : in_range(nodes_[idx].rel.right());
+}
+
+
+void Expression::negation(std::size_t idx)
+{
+	if (!in_range(index))
+	{
+		return;
+	}
+
+	// bfs traverse
+	std::queue<std::size_t> q;
+	q.push(index);
+
+	while (!q.empty())
+	{
+		const auto node_idx = q.front();
+		q.pop();
+
+		// skip invalid nodes
+		if (node_idx == INVALID_INDEX)
+		{
+			continue;
+		}
+
+		if (nodes_[node_idx].type != term_t::Function)
+		{
+			nodes_[node_idx].var *= -1;
+			continue;
+		}
+
+		// inverse operation_t
+		nodes_[node_idx].op = opposite(nodes_[node_idx].op);
+
+		// continue negation if required
+		if (nodes_[node_idx].op == operation_t::Implication ||
+			nodes_[node_idx].op == operation_t::Conjunction)
+		{
+			q.push(nodes_.subtree(node_idx).right());
+		}
+		else if (nodes_[node_idx].op == operation_t::Disjunction)
+		{
+			q.push(nodes_.subtree(node_idx).left());
+			q.push(nodes_.subtree(node_idx).right());
+		}
+	}
+}
+
+
+static Expression negation(const Expression &expression)
+{
+	Expression negated_expression(expression);
+	negated_expression.negation(0);
+	return negated_expression;
+}
+
+
+static Expression Expression::construct(
+	const Expression &lhs,
+	operation_t op,
+	const Expression &rhs
+)
+{
+	Expression expression;
+	std::size_t offset = 1;
+
+	expression.nodes_.emplace_back(
+		Term(term_t::Function, op),
+		Relation(0, 1, offset + lhs.size())
+	);
+
+	for (const auto &node : lhs)
+	{
+		expression.nodes_.push_back(node);
+
+		for (auto &ref : expression.nodes_.back().rel.refs)
+		{
+			ref += offset;
 		}
 	}
 
-	return result;
-}
-
-
-bool Expression::contains(std::int32_t needle) const noexcept
-{
-	for (const auto &token : tokens_)
+	offset += lhs.size();
+	for (const auto &node : rhs)
 	{
-		if (token == needle)
+		expression.nodes_.push_back(node);
+
+		for (auto &ref : expression.nodes_.back().rel.refs)
 		{
-			return true;
+			ref += offset;
 		}
 	}
-
-	return false;
-}
-
-
-std::size_t Expression::left(std::size_t index) const noexcept
-{
-	return in_range(index) ? tokens_[index].left() : INVALID_INDEX;
-}
-
-
-std::size_t Expression::right(std::size_t index) const noexcept
-{
-	return in_range(index) ? tokens_[index].right() : INVALID_INDEX;
-}
-
-
-std::size_t Expression::parent(std::size_t index) const noexcept
-{
-	return in_range(index) ? tokens_[index].parent() : INVALID_INDEX;
 }
 
 
@@ -369,16 +517,16 @@ void Expression::negation_inplace(std::size_t index)
 			continue;
 		}
 
-		// inverse operation
+		// inverse operation_t
 		tokens_[node_idx].op = opposite(tokens_[node_idx].op);
 
 		// continue negation if required
-		if (tokens_[node_idx].op == Operation::Implication ||
-			tokens_[node_idx].op == Operation::Conjunction)
+		if (tokens_[node_idx].op == operation_t::Implication ||
+			tokens_[node_idx].op == operation_t::Conjunction)
 		{
 			q.push(tokens_[node_idx].right());
 		}
-		else if (tokens_[node_idx].op == Operation::Disjunction)
+		else if (tokens_[node_idx].op == operation_t::Disjunction)
 		{
 			q.push(tokens_[node_idx].left());
 			q.push(tokens_[node_idx].right());
@@ -405,7 +553,7 @@ std::string Expression::to_string() const
 
 Expression contruct_expression(
 	const Expression &lhs,
-	Operation op,
+	operation_t op,
 	const Expression &rhs
 )
 {
@@ -423,13 +571,18 @@ Expression contruct_expression(
 
 std::ostream &operator<<(std::ostream &out, const Expression &expression)
 {
+	if (expression.n_tokens() == 0)
+	{
+		return out << "Nan";
+	}
+
 	std::function<std::ostream &(
 		std::ostream &,
 		const Expression &,
 		std::size_t
 	)> f = [&] (std::ostream &out, const Expression &expression, std::size_t idx) -> std::ostream &
 	{
-		if (idx == INVALID_INDEX)
+		if (idx == INVALID_INDEX || idx > expression.n_tokens())
 		{
 			return out;
 		}
