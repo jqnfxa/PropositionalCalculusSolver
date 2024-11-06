@@ -45,8 +45,8 @@ class ExpressionParser
 	 */
 	void construct_node();
 	bool is_operation(char token);
-	Operation determine_operation(char token);
-	ASTNode determine_operand(char token);
+	operation_t determine_operation(char token);
+	Term determine_operand(char token);
 
 public:
 	ExpressionParser(std::string_view expression);

@@ -6,7 +6,9 @@
 #include <stack>
 #include <queue>
 #include <functional>
+#include <string>
 #include "ast.hpp"
+#include "../parser/parser.hpp"
 
 
 const auto operation_dict = [] () -> std::unordered_map<operation_t, std::string>
@@ -50,7 +52,7 @@ Term::Term(term_t type, operation_t op, value_t value) noexcept
 {}
 
 
-std::string Term::to_string() const
+std::string Term::to_string() const noexcept
 {
 	std::stringstream representation;
 
@@ -73,13 +75,13 @@ std::string Term::to_string() const
 
 		if (type == term_t::Constant)
 		{
-			char suitable_constant = std::abs(var) - 1 + 'a';
+			char suitable_constant = std::abs(value) - 1 + 'a';
 			representation << suitable_constant;
 		}
 		else
 		{
 			// TODO: think what if var value > 9 ?
-			representation << std::abs(var);
+			representation << std::abs(value);
 		}
 	}
 
@@ -92,7 +94,7 @@ Expression::Expression() = default;
 
 Expression::Expression(std::string_view expression)
 {
-	// call of parser
+	nodes_ = std::move(ExpressionParser(expression).parse().nodes_);
 }
 
 
@@ -105,17 +107,17 @@ Expression::Expression(Term term)
 }
 
 
-Expression(const Expression &other) : nodes_(other.nodes_)
+Expression::Expression(const Expression &other) : nodes_(other.nodes_)
 {}
 
 
-Expression(Expression &&other) : nodes_(std::move(other.nodes_))
+Expression::Expression(Expression &&other) : nodes_(std::move(other.nodes_))
 {}
 
 
 Expression &Expression::operator=(const Expression &other)
 {
-	if (*this == other)
+	if (this == &other)
 	{
 		return *this;
 	}
@@ -127,7 +129,7 @@ Expression &Expression::operator=(const Expression &other)
 
 Expression &Expression::operator=(Expression &&other)
 {
-	if (*this == other)
+	if (this == &other)
 	{
 		return *this;
 	}
@@ -149,23 +151,26 @@ bool Expression::empty() const noexcept
 }
 
 
-std::ostream &operator<<(std::ostream &out) const
+std::string Expression::to_string() const noexcept
 {
+	std::stringstream ss;
 	if (empty())
 	{
-		return out << "empty";
+		ss << "empty";
+		return ss.str();
 	}
 
+	//TODO: fix wrong indices
 	std::stack<Relation> stack;
-        Relation current = subtree(0);
+	Relation current = nodes_[0].rel;
 
 	while (current.self() != INVALID_INDEX || !stack.empty())
 	{
 		// go as far left as possible
-		while (current)
+		while (current.self() != INVALID_INDEX)
 		{
 			stack.push(current);
-			current = subtree(current.left());
+			current = current.left();
 		}
 
 		// backtrack and print
@@ -175,36 +180,28 @@ std::ostream &operator<<(std::ostream &out) const
 		// print brackets
 		if (has_left(current.self()) && has_right(current.self()))
 		{
-			out << "(";
+			ss << "(";
 		}
 
-		out << nodes_[current.self()].term.to_string();
+		ss << nodes_[current.self()].term.to_string();
 
 		// print brackets
 		if (has_left(current.self()) && has_right(current.self()))
 		{
-			out << ")";
+			ss << ")";
 		}
 
 		// move to right subtree
-		current = subtree(current.right());
-        }
+		current = current.right();
+	}
 
-	return out;
+	return ss.str();
 }
 
 
-std::string Expression::to_string() const noexcept
+Relation Expression::subtree(std::size_t idx) const noexcept
 {
-	std::ostringstream representation;
-	representation << *this;
-        return representation.str();
-}
-
-
-const Relation &Expression::subtree(std::size_t idx) const noexcept
-{
-	return in_range(idx) ? nodes_[idx].rel : {};
+	return in_range(idx) ? nodes_[idx].rel : Relation{};
 }
 
 
@@ -222,14 +219,14 @@ bool Expression::has_right(std::size_t idx) const noexcept
 
 void Expression::negation(std::size_t idx)
 {
-	if (!in_range(index))
+	if (!in_range(idx))
 	{
 		return;
 	}
 
 	// bfs traverse
 	std::queue<std::size_t> q;
-	q.push(index);
+	q.push(idx);
 
 	while (!q.empty())
 	{
@@ -242,25 +239,25 @@ void Expression::negation(std::size_t idx)
 			continue;
 		}
 
-		if (nodes_[node_idx].type != term_t::Function)
+		if (nodes_[node_idx].term.type != term_t::Function)
 		{
-			nodes_[node_idx].var *= -1;
+			nodes_[node_idx].term.value *= -1;
 			continue;
 		}
 
 		// inverse operation_t
-		nodes_[node_idx].op = opposite(nodes_[node_idx].op);
+		nodes_[node_idx].term.op = opposite(nodes_[node_idx].term.op);
 
 		// continue negation if required
-		if (nodes_[node_idx].op == operation_t::Implication ||
-			nodes_[node_idx].op == operation_t::Conjunction)
+		if (nodes_[node_idx].term.op == operation_t::Implication ||
+			nodes_[node_idx].term.op == operation_t::Conjunction)
 		{
-			q.push(nodes_.subtree(node_idx).right());
+			q.push(subtree(node_idx).right());
 		}
-		else if (nodes_[node_idx].op == operation_t::Disjunction)
+		else if (nodes_[node_idx].term.op == operation_t::Disjunction)
 		{
-			q.push(nodes_.subtree(node_idx).left());
-			q.push(nodes_.subtree(node_idx).right());
+			q.push(subtree(node_idx).left());
+			q.push(subtree(node_idx).right());
 		}
 	}
 }
@@ -270,7 +267,7 @@ Expression &Expression::replace(std::size_t idx, const Expression &expression)
 {
 	if (idx == 0)
 	{
-		nodes_ = expression.nodes();
+		nodes_ = expression.nodes_;
 		return *this;
 	}
 
@@ -285,16 +282,16 @@ Expression &Expression::replace(std::size_t idx, const Expression &expression)
 	};
 
 	auto offset = size();
-	nodes_[idx].term.type = expression.nodes_[0].type;
-	nodes_[idx].term.op = expression.nodes_[0].op;
-	nodes_[idx].term.value = expression.nodes_[0].value;
-	nodes_[idx].rel.left = update_index(expression.nodes_[0].rel.left, offset);
-	nodes_[idx].rel.right = update_index(expression.nodes_[0].rel.right, offset);
+	nodes_[idx].term.type = expression.nodes_[0].term.type;
+	nodes_[idx].term.op = expression.nodes_[0].term.op;
+	nodes_[idx].term.value = expression.nodes_[0].term.value;
+	nodes_[idx].rel.refs[1] = update_index(expression.nodes_[0].rel.refs[1], offset);
+	nodes_[idx].rel.refs[2] = update_index(expression.nodes_[0].rel.refs[2], offset);
 
 	for (std::size_t i = 1; i < expression.size(); ++i)
 	{
-		nodes_.push_back(node);
-		for (auto &ref : nodes_.back().refs)
+		nodes_.push_back(expression.nodes_[i]);
+		for (auto &ref : nodes_.back().rel.refs)
 		{
 			ref += offset;
 		}
@@ -304,15 +301,7 @@ Expression &Expression::replace(std::size_t idx, const Expression &expression)
 }
 
 
-static Expression Expression::negation(const Expression &expression)
-{
-	Expression negated_expression(expression);
-	negated_expression.negation(0);
-	return negated_expression;
-}
-
-
-static Expression Expression::construct(
+Expression Expression::construct(
 	const Expression &lhs,
 	operation_t op,
 	const Expression &rhs
@@ -326,7 +315,7 @@ static Expression Expression::construct(
 		Relation(0, 1, offset + lhs.size())
 	);
 
-	for (const auto &node : lhs)
+	for (const auto &node : lhs.nodes_)
 	{
 		expression.nodes_.push_back(node);
 
@@ -337,7 +326,7 @@ static Expression Expression::construct(
 	}
 
 	offset += lhs.size();
-	for (const auto &node : rhs)
+	for (const auto &node : rhs.nodes_)
 	{
 		expression.nodes_.push_back(node);
 
@@ -346,4 +335,12 @@ static Expression Expression::construct(
 			ref += offset;
 		}
 	}
+
+	return expression;
 }
+
+
+/*std::ostream &operator<<(std::ostream &out, const Expression &expression)
+{
+	return out << expression.to_string();
+}*/
