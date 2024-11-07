@@ -5,14 +5,9 @@
 
 int main()
 {
-	std::string is;
-	//std::cin >> is;
-	Expression axiom1 = ExpressionParser("a>(b>a)").parse();
-	Expression axiom2 = ExpressionParser("(a>(b>c))>((b>c)>(a>c))").parse();
-	Expression a = ExpressionParser("a").parse();
-	std::cout << axiom1 << '\n';
-	axiom2.replace(3, a);
-	std::cout << axiom2 << '\n';
-	std::cout << axiom2.subtree(axiom2.right(0));
+	Expression axiom1("(!a>(b>c))>((b>c)>(!a>c))");
+	Expression axiom2("(a>(b>a))");
+	axiom1.replace(1, axiom2);
+	std::cout << axiom1.to_string() << std::endl;
 	return 0;
 }

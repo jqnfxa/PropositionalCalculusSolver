@@ -234,7 +234,11 @@ void Expression::negation(std::size_t idx)
 
 		if (nodes_[node_idx].term.type != term_t::Function)
 		{
-			nodes_[node_idx].term.value *= -1;
+			nodes_[node_idx].term.op =
+				nodes_[node_idx].term.op == operation_t::Negation ?
+				operation_t::Nop :
+				operation_t::Negation;
+
 			continue;
 		}
 
@@ -258,6 +262,11 @@ void Expression::negation(std::size_t idx)
 
 Expression &Expression::replace(value_t value, const Expression &expression)
 {
+	if (expression.empty())
+	{
+		return *this;
+	}
+
 	std::vector<std::size_t> indices;
 	Expression new_expr = expression;
 
@@ -269,7 +278,7 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		if (node.term.type == term_t::Variable && node.term.value == value)
 		{
 			indices.push_back(node.rel.self());
-			appropriate_value = std::max(appropriate_value, node.term.value);
+			appropriate_value = std::max(std::abs(appropriate_value), node.term.value);
 		}
 	}
 
@@ -279,7 +288,7 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		return *this;
 	}
 
-	const auto update_index = [&] (std::size_t index, std::size_t offset)
+	const auto update_index = [] (std::size_t index, std::size_t offset)
 	{
 		return index == INVALID_INDEX ? INVALID_INDEX : index + offset;
 	};
@@ -290,6 +299,7 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 	for (const auto &entry : indices)
 	{
 		// replace entry with new root node
+		bool should_negate = nodes_[entry].term.op == operation_t::Negation;
 		nodes_[entry].term.type = new_expr.nodes_[0].term.type;
 		nodes_[entry].term.op = new_expr.nodes_[0].term.op;
 		nodes_[entry].term.value = new_expr.nodes_[0].term.value;
@@ -310,8 +320,20 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		}
 
 		// update relations for subroot nodes
-		nodes_[subtree(entry).left()].rel.refs[3] = entry;
-		nodes_[subtree(entry).right()].rel.refs[3] = entry;
+		if (subtree(entry).left() != INVALID_INDEX)
+		{
+			nodes_[subtree(entry).left()].rel.refs[3] = entry;
+		}
+		if (subtree(entry).right() != INVALID_INDEX)
+		{
+			nodes_[subtree(entry).right()].rel.refs[3] = entry;
+		}
+
+		// if variable has negation then don't forget to apply it
+		if (should_negate)
+		{
+			negation(entry);
+		}
 
 		// mode offset
 		offset = nodes_.size();
