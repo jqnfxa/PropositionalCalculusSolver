@@ -160,41 +160,34 @@ std::string Expression::to_string() const noexcept
 		return ss.str();
 	}
 
-	//TODO: fix wrong indices
-	std::stack<Relation> stack;
-	Relation current = nodes_[0].rel;
-
-	while (current.self() != INVALID_INDEX || !stack.empty())
+	std::function<void(std::ostream &, Relation, const Expression &)> f =
+	[&] (std::ostream &out, Relation root, const Expression &expression)
 	{
-		// go as far left as possible
-		while (current.self() != INVALID_INDEX)
+		if (root.self() == INVALID_INDEX)
 		{
-			stack.push(current);
-			current = current.left();
+			return;
 		}
 
-		// backtrack and print
-		current = stack.top();
-		stack.pop();
-
-		// print brackets
-		if (has_left(current.self()) && has_right(current.self()))
+		const bool brackets = root.parent() != INVALID_INDEX &&
+			expression[root.self()].type == term_t::Function;
+		if (brackets)
 		{
-			ss << "(";
+			out << "(";
 		}
 
-		ss << nodes_[current.self()].term.to_string();
+		f(out, subtree(root.left()), expression);
+		out << expression[root.self()].to_string();
+		f(out, subtree(root.right()), expression);
 
-		// print brackets
-		if (has_left(current.self()) && has_right(current.self()))
+		if (brackets)
 		{
-			ss << ")";
+			out << ")";
 		}
 
-		// move to right subtree
-		current = current.right();
-	}
+		return;
+	};
 
+	f(ss, subtree(0), *this);
 	return ss.str();
 }
 
@@ -207,13 +200,13 @@ Relation Expression::subtree(std::size_t idx) const noexcept
 
 bool Expression::has_left(std::size_t idx) const noexcept
 {
-	return in_range(idx) ? false : in_range(nodes_[idx].rel.left());
+	return !in_range(idx) ? false : in_range(nodes_[idx].rel.left());
 }
 
 
 bool Expression::has_right(std::size_t idx) const noexcept
 {
-	return in_range(idx) ? false : in_range(nodes_[idx].rel.right());
+	return !in_range(idx) ? false : in_range(nodes_[idx].rel.right());
 }
 
 
@@ -263,15 +256,25 @@ void Expression::negation(std::size_t idx)
 }
 
 
-Expression &Expression::replace(std::size_t idx, const Expression &expression)
+Expression &Expression::replace(value_t value, const Expression &expression)
 {
-	if (idx == 0)
+	std::vector<std::size_t> indices;
+	Expression new_expr = expression;
+
+	value_t appropriate_value = 0;
+
+	// find all places
+	for (const auto &node : nodes_)
 	{
-		nodes_ = expression.nodes_;
-		return *this;
+		if (node.term.type == term_t::Variable && node.term.value == value)
+		{
+			indices.push_back(node.rel.self());
+			appropriate_value = std::max(appropriate_value, node.term.value);
+		}
 	}
 
-	if (!in_range(idx))
+	// nothing to replace
+	if (indices.empty())
 	{
 		return *this;
 	}
@@ -281,20 +284,37 @@ Expression &Expression::replace(std::size_t idx, const Expression &expression)
 		return index == INVALID_INDEX ? INVALID_INDEX : index + offset;
 	};
 
+	// don't forget that other variables are different and should not intersect with ours
 	auto offset = size();
-	nodes_[idx].term.type = expression.nodes_[0].term.type;
-	nodes_[idx].term.op = expression.nodes_[0].term.op;
-	nodes_[idx].term.value = expression.nodes_[0].term.value;
-	nodes_[idx].rel.refs[1] = update_index(expression.nodes_[0].rel.refs[1], offset);
-	nodes_[idx].rel.refs[2] = update_index(expression.nodes_[0].rel.refs[2], offset);
-
-	for (std::size_t i = 1; i < expression.size(); ++i)
+	appropriate_value = appropriate_value + 1;
+	for (const auto &entry : indices)
 	{
-		nodes_.push_back(expression.nodes_[i]);
-		for (auto &ref : nodes_.back().rel.refs)
+		// replace entry with new root node
+		nodes_[entry].term.type = new_expr.nodes_[0].term.type;
+		nodes_[entry].term.op = new_expr.nodes_[0].term.op;
+		nodes_[entry].term.value = new_expr.nodes_[0].term.value;
+		nodes_[entry].rel.refs[1] =
+			update_index(new_expr.subtree(0).left(), offset - 1);
+		nodes_[entry].rel.refs[2] =
+			update_index(new_expr.subtree(0).right(), offset - 1);
+
+		for (std::size_t i = 1; i < new_expr.nodes_.size(); ++i)
 		{
-			ref += offset;
+			nodes_.push_back(new_expr.nodes_[i]);
+			//nodes_.back().term.value += appropriate_value;
+
+			for (auto &ref : nodes_.back().rel.refs)
+			{
+				ref = update_index(ref, offset - 1);
+			}
 		}
+
+		// update relations for subroot nodes
+		nodes_[subtree(entry).left()].rel.refs[3] = entry;
+		nodes_[subtree(entry).right()].rel.refs[3] = entry;
+
+		// mode offset
+		offset = nodes_.size();
 	}
 
 	return *this;
@@ -312,8 +332,13 @@ Expression Expression::construct(
 
 	expression.nodes_.emplace_back(
 		Term(term_t::Function, op),
-		Relation(0, 1, offset + lhs.size())
+		Relation(0, 1, 1 + lhs.size())
 	);
+
+	const auto update_index = [] (std::size_t index, std::size_t off)
+	{
+		return index == INVALID_INDEX ? INVALID_INDEX : index + off;
+	};
 
 	for (const auto &node : lhs.nodes_)
 	{
@@ -321,7 +346,12 @@ Expression Expression::construct(
 
 		for (auto &ref : expression.nodes_.back().rel.refs)
 		{
-			ref += offset;
+			ref = update_index(ref, offset);
+		}
+
+		if (expression.nodes_.back().rel.refs[3] == INVALID_INDEX)
+		{
+			expression.nodes_.back().rel.refs[3] = 0;
 		}
 	}
 
@@ -332,7 +362,12 @@ Expression Expression::construct(
 
 		for (auto &ref : expression.nodes_.back().rel.refs)
 		{
-			ref += offset;
+			ref = update_index(ref, offset);
+		}
+
+		if (expression.nodes_.back().rel.refs[3] == INVALID_INDEX)
+		{
+			expression.nodes_.back().rel.refs[3] = 0;
 		}
 	}
 

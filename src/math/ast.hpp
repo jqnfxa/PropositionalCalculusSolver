@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <array>
+#include <string>
 
 
 using value_t = std::int32_t;
@@ -67,11 +68,7 @@ struct Term
 
 	Term(term_t type = term_t::None,
 		operation_t op = operation_t::Nop,
-		value_t value = 0) noexcept
-		: type(type)
-		, op(op)
-		, value(value)
-	{}
+		value_t value = 0) noexcept;
 
 
 	std::string to_string() const noexcept;
@@ -114,7 +111,7 @@ private:
 
 	inline bool in_range(std::size_t index) const noexcept
 	{
-		return index < tokens_.size();
+		return index < nodes_.size();
 	}
 public:
 	// construction
@@ -132,19 +129,16 @@ public:
 	std::size_t size() const noexcept;
 	inline Term &operator[](std::size_t idx) { return nodes_[idx].term; }
  	inline const Term &operator[](std::size_t idx) const { return nodes_[idx].term; }
-	std::ostream &operator<<(std::ostream &out) const;
 	std::string to_string() const noexcept;
 
-
 	// relation information
-	const Relation &subtree(std::size_t idx) const noexcept;
+	Relation subtree(std::size_t idx) const noexcept;
 	bool has_left(std::size_t idx) const noexcept;
 	bool has_right(std::size_t idx) const noexcept;
 
 
 	void negation(std::size_t idx = 0);
-	Expression &replace(std::size_t idx, const Expression &expression);
-	static Expression negation(const Expression &expression);
+	Expression &replace(value_t value, const Expression &expression);
 
 
 	// expression construction
@@ -155,5 +149,7 @@ public:
 	);
 };
 
+
+std::ostream &operator<<(std::ostream &out, const Expression &expression);
 
 #endif // AST_HPP
