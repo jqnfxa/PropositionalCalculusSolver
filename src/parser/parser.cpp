@@ -5,34 +5,34 @@
 #include "parser.hpp"
 
 
-const auto char_to_op = [] () -> std::unordered_map<char, Operation>
+const auto char_to_op = [] () -> std::unordered_map<char, operation_t>
 {
-	return std::unordered_map<char, Operation>{
-		{'\0', Operation::Nop},
-		{'!', Operation::Negation},
-		{'|', Operation::Disjunction},
-		{'*', Operation::Conjunction},
-		{'>', Operation::Implication},
-		{'+', Operation::Xor},
-		{'=', Operation::Equivalent}
+	return std::unordered_map<char, operation_t>{
+		{'\0', operation_t::Nop},
+		{'!', operation_t::Negation},
+		{'|', operation_t::Disjunction},
+		{'*', operation_t::Conjunction},
+		{'>', operation_t::Implication},
+		{'+', operation_t::Xor},
+		{'=', operation_t::Equivalent}
 	};
 }();
 
 
 /**
- * @note: higher priority - operation must be executed first
+ * @note: higher priority - operation_t must be executed first
  * https://studopedia.ru/13_131857_prioritet-logicheskih-operatsiy.html
  */
 constexpr const std::int32_t pri[] = {0, 5, 1, 3, 4, 2, 2, 0, 0};
-std::int32_t priority(Token operation)
+std::int32_t priority(Token op)
 {
-	return pri[static_cast<std::int32_t>(operation)];
+	return pri[static_cast<std::int32_t>(op)];
 }
 
 
-std::int32_t priority(Operation operation)
+std::int32_t priority(operation_t op)
 {
-	return pri[static_cast<std::int32_t>(operation)];
+	return pri[static_cast<std::int32_t>(op)];
 }
 
 
@@ -53,7 +53,7 @@ void ExpressionParser::construct_node()
 		operands.pop();
 		operations.pop();
 
-		operand.negation_inplace(0);
+		operand.negation();
 		operands.push(operand);
 		return;
 	}
@@ -71,15 +71,15 @@ void ExpressionParser::construct_node()
 	}
 
 	// extract nodes
-	const auto rhs = operands.top();
+	auto rhs = operands.top();
 	operands.pop();
-	const auto op = static_cast<Operation>(static_cast<std::int32_t>(operations.top()));
+	const auto op = static_cast<operation_t>(operations.top());
 	operations.pop();
-	const auto lhs = operands.top();
+	auto lhs = operands.top();
 	operands.pop();
 
 	// add produced node
-	operands.emplace(contruct_expression(lhs, op, rhs));
+	operands.emplace(Expression::construct(lhs, op, rhs));
 }
 
 
@@ -89,25 +89,25 @@ bool ExpressionParser::is_operation(char token)
 }
 
 
-Operation ExpressionParser::determine_operation(char token)
+operation_t ExpressionParser::determine_operation(char token)
 {
 	if (!is_operation(token))
 	{
-		return Operation::Nop;
+		return operation_t::Nop;
 	}
 
 	return char_to_op.at(token);
 }
 
 
-ASTNode ExpressionParser::determine_operand(char token)
+Term ExpressionParser::determine_operand(char token)
 {
 	if (!('a' <= token && token <= 'z'))
 	{
 		throw std::runtime_error("invalid variable name");
 	}
 
-	return {token - 'a' + 1, Operation::Nop, 0};
+	return {term_t::Variable, operation_t::Nop, token - 'a' + 1};
 }
 
 
@@ -149,10 +149,10 @@ Expression ExpressionParser::parse()
 		if (is_operation(token))
 		{
 			const auto op = determine_operation(token);
-			if (op == Operation::Negation)
+			if (op == operation_t::Negation)
 			{
 				// "!(!a)" -> "a"
-				operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
+				operations.push(static_cast<Token>(op));
 				continue;
 			}
 
@@ -169,12 +169,12 @@ Expression ExpressionParser::parse()
 				construct_node();
 			}
 
-			operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
+			operations.push(static_cast<Token>(op));
 		}
 		else
 		{
 			last_token_is_op = false;
-			operands.emplace(std::vector<ASTNode>{determine_operand(token)});
+			operands.emplace(determine_operand(token));
 		}
 	}
 

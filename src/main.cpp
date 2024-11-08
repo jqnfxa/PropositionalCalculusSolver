@@ -1,18 +1,17 @@
 #include <iostream>
 #include "./math/ast.hpp"
-#include "./parser/parser.hpp"
+#include "./math/rules.hpp"
 
 
 int main()
 {
-	std::string is;
-	//std::cin >> is;
-	Expression axiom1 = ExpressionParser("a>(b>a)").parse();
-	Expression axiom2 = ExpressionParser("(a>(b>c))>((b>c)>(a>c))").parse();
-	Expression a = ExpressionParser("a").parse();
-	std::cout << axiom1 << '\n';
-	axiom2.replace(3, a);
-	std::cout << axiom2 << '\n';
-	std::cout << axiom2.subtree(axiom2.right(0));
+	Expression axiom1("(a>(b>a))");
+	Expression axiom2("(a>(b>c))>((a>b)>(a>c))");
+
+	Expression e1 = modus_ponens(axiom1, axiom2);
+	Expression e2 = modus_ponens(axiom1, e1);
+
+	std::cout << e1.to_string() << '\n';
+	std::cout << e2.to_string() << '\n';
 	return 0;
 }
