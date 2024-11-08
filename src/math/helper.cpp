@@ -1,174 +1,240 @@
-#include <set>
 #include <unordered_map>
-#include <ostream>
-#include <functional>
+#include <queue>
 #include "helper.hpp"
 
 
-bool is_same_expression(const Expression &lhs, const Expression &rhs)
+bool unification(
+	Expression left,
+	Expression right,
+	std::unordered_map<value_t, Expression> &substitution
+)
 {
-	// has different operation?
-	if (lhs.root().op != rhs.root().op)
+	std::unordered_map<value_t, Expression> left_substitution;
+	std::unordered_map<value_t, Expression> right_substitution;
+
+	// change variables to avoid intersections
+	right.change_variables(left.max_value() + 1);
+
+	// algorithm
+	// step 1: find the set of mismatches
+	// step 2: apply appropriate changes (if possible)
+	// goto 1
+	// mismatches can only be in `current`, `left` or `right` subtrees
+	// therefore we will use preorder tree traverse
+
+	std::queue<std::size_t> left_expression;
+	std::queue<std::size_t> right_expression;
+
+	left_expression.push(left.subtree(0).self());
+	right_expression.push(right.subtree(0).self());
+
+	while (!left_expression.empty() && !right_expression.empty())
 	{
-		// not oposite so give up
-		if (lhs.root().op != opposite(rhs.root().op))
+		auto left_idx = left_expression.front();
+		left_expression.pop();
+		auto right_idx = right_expression.front();
+		right_expression.pop();
+
+		auto &left_term = left[left_idx];
+		auto &right_term = right[right_idx];
+
+		// case 0: both terms are functions
+		if (left_term.type == term_t::Function && right_term.type == term_t::Function)
 		{
-			return false;
+			// it's impossible to unify different operations
+			if (left_term.op != right_term.op)
+			{
+				return false;
+			}
+
+			// add nodes to process
+			left_expression.push(left.subtree(left_idx).left());
+			left_expression.push(left.subtree(left_idx).right());
+			right_expression.push(right.subtree(right_idx).left());
+			right_expression.push(right.subtree(right_idx).right());
+			continue;
 		}
 
-		return is_same_expression(lhs, rhs.negation());
+		// case 1: both terms are constants
+		if (left_term.type == term_t::Constant && right_term.type == term_t::Constant)
+		{
+			// can't unify two constants
+			if (left_term.value != right_term.value)
+			{
+				return false;
+			}
+
+			// well, everything seems to be fine
+			continue;
+		}
+
+		// case 2: left term is constant and right is variable
+		if (left_term.type == term_t::Constant && right_term.type == term_t::Variable)
+		{
+			// variable of right term already have substitution?
+			if (right_substitution.contains(right_term.value))
+			{
+				return false;
+			}
+
+			right_substitution[right_term.value] = Expression{left_term};
+			continue;
+		}
+
+		// case 3: left term is variable and right is constant
+		if (left_term.type == term_t::Variable && right_term.type == term_t::Constant)
+		{
+			// variable of right term already have substitution?
+			if (left_substitution.contains(left_term.value))
+			{
+				return false;
+			}
+
+			left_substitution[left_term.value] = Expression{right_term};
+			continue;
+		}
+
+		// case 4: both terms are variables
+		if (left_term.type == term_t::Variable && right_term.type == term_t::Variable)
+		{
+			// are variables equal?
+			if (left_term.value == right_term.value)
+			{
+				continue;
+			}
+
+			// can we change variables?
+			if (left_substitution.contains(left_term.value) ||
+				right_substitution.contains(right_term.value))
+			{
+				// only one variable can be changed
+				if (!left_substitution.contains(left_term.value))
+				{
+					left_substitution[left_term.value] = Expression{right_term};
+					continue;
+				}
+				if (!right_substitution.contains(right_term.value))
+				{
+					right_substitution[right_term.value] = Expression{left_term};
+					continue;
+				}
+
+				// only one variable can't be changed, are substitution equal?
+				if (!left_substitution.at(left_term.value).equal_to(
+					right_substitution.at(right_term.value)))
+				{
+					// give up
+					return false;
+				}
+
+				continue;
+			}
+
+			// since we can change variables to any variables let's pick left
+			left_substitution[left_term.value] = Expression{left_term};
+			right_substitution[right_term.value] = Expression{left_term};
+			continue;
+		}
+
+		// case 5: left term is function
+		if (left_term.type == term_t::Function)
+		{
+			if (right_term.type != term_t::Variable)
+			{
+				return false;
+			}
+
+			// can we change variable?
+			if (right_substitution.contains(right_term.value))
+			{
+				return false;
+			}
+
+			// function can't depend on variable
+			if (left.contains(left_idx, right_term))
+			{
+				return false;
+			}
+
+			// apply changes
+			right_substitution[right_term.value] = left.subtree_copy(left_idx);
+			continue;
+		}
+
+		// case 6: right term is function
+		if (right_term.type == term_t::Function)
+		{
+			if (left_term.type != term_t::Variable)
+			{
+				return false;
+			}
+
+			// can we change variable?
+			if (left_substitution.contains(left_term.value))
+			{
+				return false;
+			}
+
+			// function can't depend on variable
+			if (right.contains(right_idx, left_term))
+			{
+				return false;
+			}
+
+			// apply changes
+			left_substitution[left_term.value] = right.subtree_copy(right_idx);
+			continue;
+		}
+
+		// something went wrong during unification?
+		// this point is basically unreachable
+		return false;
 	}
 
-	// may be they are completely equal ?
-	if (lhs == rhs)
-	{
-		return true;
-	}
+	substitution = std::move(right_substitution);
+	return true;
+}
 
-	// for non-commutative operations expressions are not equal
-	if (!is_commutative(lhs.root().op))
+
+bool is_equal(Expression left, Expression right)
+{
+	// few O(1) checks
+	if (left.size() != right.size())
 	{
 		return false;
 	}
 
-	// compare left subtree of A with right subtree of B
-	return is_same_expression(lhs.subtree(lhs.left(0)), rhs.subtree(rhs.right(0)));
-}
+	if (left.empty() ^ right.empty())
+	{
+		return false;
+	}
 
-
-bool is_follows(const Expression &lhs, const Expression &rhs)
-{
-	// rule 1
-	if (is_same_expression(lhs, rhs))
+	if (left.empty() && right.empty())
 	{
 		return true;
 	}
 
-	const auto left = rhs.subtree(rhs.left(0));
-	const auto right = rhs.subtree(rhs.right(0));
-
-	// rule 2 and rule 3
-	if (rhs.root().op == Operation::Disjunction)
+	if (left[0].op != right[0].op ||
+		left[0].type != right[0].type)
 	{
-                return is_same_expression(lhs, left) ||
-			is_same_expression(lhs, right);
+		return false;
 	}
 
-	// rule 4 and rule 5
-	if (rhs.root().op == Operation::Implication)
+	// let's inspect more deeply
+	std::unordered_map<value_t, Expression> substitution;
+	if (!unification(left, right, substitution))
 	{
-		return is_same_expression(lhs, right) ||
-			is_same_expression(lhs, left.negation());
+		return false;
 	}
 
-	// give up
-	return false;
-}
-
-
-std::ostream &deduction_theorem_decomposition(
-	std::ostream &out,
-	std::vector<Expression> &left_side,
-	Expression &target
-)
-{
-	while (target.root().op == Operation::Implication)
+	for (const auto &[variable, sub] : substitution)
 	{
-		out << "(deduction theorem): " << target << '\n';
-
-		// add left subexpression
-		left_side.push_back(target.subtree(target.left(0)));
-
-		// traverse to right subexpression
-		target = target.subtree(target.right(0));
-	}
-
-	return out;
-}
-
-
-std::ostream &conjunction_splitting_rule(
-	std::ostream &out,
-	std::vector<Expression> &hypotheses
-)
-{
-	std::vector<Expression> new_hypotheses;
-
-	for (const auto &hypothesis : hypotheses)
-	{
-		// decompose A*B into A,B
-		if (hypothesis.root().op == Operation::Conjunction)
+		// we only can change variables to (variables|constants)
+		if (sub[0].type == term_t::Function)
 		{
-			out << "(conjunction splitting rule): " << hypothesis << '\n';
-
-			new_hypotheses.emplace_back(hypothesis.subtree(hypothesis.left(0)));
-			new_hypotheses.emplace_back(hypothesis.subtree(hypothesis.right(0)));
+			return false;
 		}
 	}
 
-	for (const auto &new_hypothesis : new_hypotheses)
-	{
-		hypotheses.emplace_back(new_hypothesis);
-	}
-
-	return out;
-}
-
-
-std::unordered_map<std::int32_t, Expression> unification(
-	const Expression &lhs,
-	const Expression &rhs
-)
-{
-	// idea is to traverse both trees and store which nodes from `rhs` should be replaced
-	std::unordered_map<std::int32_t, Expression> replacements;
-	bool unifiable = true;
-
-	std::function<void(std::size_t, std::size_t, const Expression &, const Expression &)> traverse =
-	[&] (std::size_t i, std::size_t j, const Expression &a, const Expression &b)
-	{
-		if (!unifiable)
-		{
-			return;
-		}
-
-		if (i == INVALID_INDEX || j == INVALID_INDEX)
-		{
-			return;
-		}
-
-		if (b.root().is_leaf())
-		{
-			replacements[b.root().var] = a;
-			return;
-		}
-
-		// operation must be the same
-		if (a.root().op != b.root().op)
-		{
-			unifiable = false;
-			return;
-		}
-
-		traverse(a.left(i), b.left(j), a, b);
-		traverse(a.right(i), b.right(j), a, b);
-	};
-
-	traverse(0, 0, lhs, rhs);
-
-	if (!unifiable)
-	{
-		replacements.clear();
-	}
-
-	return replacements;
-}
-
-
-void unify(Expression &expression, const std::unordered_map<std::int32_t, Expression> &rules)
-{
-	for (const auto &[var, replacement] : rules)
-	{
-		expression.replace(var, replacement);
-	}
+	return true;
 }

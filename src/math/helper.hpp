@@ -1,80 +1,39 @@
 #ifndef HELPER_HPP
 #define HELPER_HPP
 
-#include <vector>
+#include <unordered_map>
 #include "ast.hpp"
 
 
 /**
- * @brief Determine whether `A` is same as `B`
- */
-bool is_same_expression(const Expression &A, const Expression &B);
-
-
-/**
- * @brief Determine whether A ⊢ B
- * @note defined rules:
- * 1. A ⊢ A
- * 2. A ⊢ A | B
- * 3. A ⊢ B | A
- * 4. A ⊢ B > A
- * 5. A ⊢ !A > B
- */
-bool is_follows(const Expression &A, const Expression &B);
-
-
-/**
- * @brief decompose expression using known theorems
- * @note known theorems:
- * 1. ? ⊢ A > B <=> ?, A ⊢ B (deduction theorem)
+ * @brief Performs unification between two expressions,
+ * producing a substitution if possible.
  *
- * @return decomposed expression stored in array, new expression (right side) stored last
+ * @param left The left-hand side expression.
+ * @param right The right-hand side expression.
+ * @param substitution A reference to a map where the resulting substitution will be stored.
+ *
+ * @note `right` is unified to `left`
+ *
+ * @return Returns `true` if unification was successful, `false` otherwise.
  */
-std::ostream &deduction_theorem_decomposition(
-	std::ostream &out,
-	std::vector<Expression> &left_side,
-	Expression &target
+bool unification(
+	Expression left,
+	Expression right,
+	std::unordered_map<value_t, Expression> &substitution
 );
 
 
 /**
- * @brief decompose hypotheses using known theorems
- * @note known theorems:
- * 1. ?,A*B ⊢ C <=> ?,A*B,A,B ⊢ C (conjunction splitting rule)
- */
-std::ostream &conjunction_splitting_rule(
-	std::ostream &out,
-	std::vector<Expression> &hypotheses
-);
-
-
-/**
- * @brief tries to produce rules to unify rhs to lhs with restrictions
- * @note restrictions:
- * let's assume `a` is variable
- * let's assume `b` is variable
- * let's assume `c` is any expression
+ * @brief Check if left and right expressions are the same
  *
- * then:
- * 1. `a` can be replaced with `b`
- * 2. `a` can be replaced with `c` <=> `c` does not contain `a`
+ * @note unification of variables is allowed
  *
- * @return unification rules, if map is empty, then no unification is possible
- */
-std::unordered_map<std::int32_t, Expression> unification(
-	const Expression &lhs,
-	const Expression &rhs
-);
-
-
-/**
- * @brief unify expression with specific rules
+ * @param left The left-hand side expression.
+ * @param right The right-hand side expression.
  *
- * @return unificated B or nullptr if no unification is possible
+ * @return Returns `true` if expressions are equal and `false` otherwise.
  */
-void unify(
-	Expression &expression,
-	const std::unordered_map<std::int32_t, Expression> &rules
-);
+bool is_equal(Expression left, Expression right);
 
 #endif // HELPER_HPP

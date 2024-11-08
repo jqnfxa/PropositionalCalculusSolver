@@ -7,9 +7,7 @@ CXX = g++
 CFLAGS = -O0 -g -fsanitize=leak -Wall -Wextra -pedantic -std=c++20
 
 # Source files
-#SRCS = $(wildcard src/math/ast.cpp src/solver/solver.cpp src/math/helper.cpp src/parser/parser.cpp src/main.cpp)
-SRCS = $(wildcard src/math/ast.cpp src/math/rules.cpp src/parser/parser.cpp src/main.cpp)
-#SRCS = $(wildcard src/math/ast.cpp src/math/helper.cpp src/parser/parser.cpp src/tests/ast_test_2.cpp)
+SRCS = $(wildcard src/math/ast.cpp src/math/helper.cpp src/math/rules.cpp src/parser/parser.cpp src/main.cpp)
 OBJS = $(SRCS:.cpp=.o)
 
 # Include directories
