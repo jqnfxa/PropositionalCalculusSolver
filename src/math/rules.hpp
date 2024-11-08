@@ -1,5 +1,7 @@
-#ifndef // RULES_HPP
-#define // RULES_HPP
+#ifndef RULES_HPP
+#define RULES_HPP
+
+#include "ast.hpp"
 
 
 // 2 variables
