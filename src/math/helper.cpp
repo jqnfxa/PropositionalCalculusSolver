@@ -111,11 +111,19 @@ bool unification(
 				if (!left_substitution.contains(left_term.value))
 				{
 					left_substitution[left_term.value] = Expression{right_term};
+					if (left_term.op == operation_t::Negation)
+					{
+						left_substitution[left_term.value].negation();
+					}
 					continue;
 				}
 				if (!right_substitution.contains(right_term.value))
 				{
 					right_substitution[right_term.value] = Expression{left_term};
+					if (right_term.op == operation_t::Negation)
+					{
+						right_substitution[right_term.value].negation();
+					}
 					continue;
 				}
 
@@ -132,7 +140,16 @@ bool unification(
 
 			// since we can change variables to any variables let's pick left
 			left_substitution[left_term.value] = Expression{left_term};
+			if (left_term.op == operation_t::Negation)
+			{
+				left_substitution[left_term.value].negation();
+			}
+
 			right_substitution[right_term.value] = Expression{left_term};
+			if (right_term.op == operation_t::Negation)
+			{
+				right_substitution[right_term.value].negation();
+			}
 			continue;
 		}
 
@@ -204,37 +221,13 @@ bool is_equal(Expression left, Expression right)
 		return false;
 	}
 
-	if (left.empty() ^ right.empty())
+	if (left[0].op != right[0].op)
 	{
 		return false;
 	}
 
-	if (left.empty() && right.empty())
-	{
-		return true;
-	}
+	left.normalize();
+	right.normalize();
 
-	if (left[0].op != right[0].op ||
-		left[0].type != right[0].type)
-	{
-		return false;
-	}
-
-	// let's inspect more deeply
-	std::unordered_map<value_t, Expression> substitution;
-	if (!unification(left, right, substitution))
-	{
-		return false;
-	}
-
-	for (const auto &[variable, sub] : substitution)
-	{
-		// we only can change variables to (variables|constants)
-		if (sub[0].type == term_t::Function)
-		{
-			return false;
-		}
-	}
-
-	return true;
+	return left.to_string() == right.to_string();
 }
