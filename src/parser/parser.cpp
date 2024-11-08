@@ -71,11 +71,11 @@ void ExpressionParser::construct_node()
 	}
 
 	// extract nodes
-	const auto rhs = operands.top();
+	auto rhs = operands.top();
 	operands.pop();
-	const auto op = static_cast<operation_t>(static_cast<std::int32_t>(operations.top()));
+	const auto op = static_cast<operation_t>(operations.top());
 	operations.pop();
-	const auto lhs = operands.top();
+	auto lhs = operands.top();
 	operands.pop();
 
 	// add produced node
@@ -152,7 +152,7 @@ Expression ExpressionParser::parse()
 			if (op == operation_t::Negation)
 			{
 				// "!(!a)" -> "a"
-				operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
+				operations.push(static_cast<Token>(op));
 				continue;
 			}
 
@@ -169,7 +169,7 @@ Expression ExpressionParser::parse()
 				construct_node();
 			}
 
-			operations.push(static_cast<Token>(static_cast<std::int32_t>(op)));
+			operations.push(static_cast<Token>(op));
 		}
 		else
 		{
