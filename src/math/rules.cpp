@@ -31,6 +31,8 @@ Expression modus_ponens(const Expression &lhs, const Expression &rhs)
 
 	// unification succeeded, let's apply changes
 	auto result = rhs;
+	result.change_variables(lhs.max_value() + 1);
+
 	for (const auto &[variable, sub] : substitution)
 	{
 		result.replace(variable, sub);
