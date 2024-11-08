@@ -3,11 +3,11 @@ PROJECT = pc-solver
 
 # Compiler flags
 CXX = g++
-#CFLAGS = -O3 -Wall -Wextra -pedantic -std=c++20
-CFLAGS = -O0 -g -fsanitize=leak -Wall -Wextra -pedantic -std=c++20
+CFLAGS = -O3 -Wall -Wextra -pedantic -std=c++20
+#CFLAGS = -O0 -g -fsanitize=leak -Wall -Wextra -pedantic -std=c++20
 
 # Source files
-SRCS = $(wildcard src/math/ast.cpp src/math/helper.cpp src/math/rules.cpp src/parser/parser.cpp src/main.cpp)
+SRCS = $(wildcard src/math/ast.cpp src/math/helper.cpp src/solver/solver.cpp src/math/rules.cpp src/parser/parser.cpp src/main.cpp)
 OBJS = $(SRCS:.cpp=.o)
 
 # Include directories
