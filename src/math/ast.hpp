@@ -60,6 +60,10 @@ inline bool is_commutative(operation_t operation_t)
 operation_t opposite(operation_t operation);
 
 
+std::size_t increase_index(std::size_t index, std::size_t offset);
+std::size_t decrease_index(std::size_t index, std::size_t offset);
+
+
 struct Term
 {
 	term_t type;
@@ -120,6 +124,8 @@ public:
 	Expression(Term term);
 	Expression(const Expression &other);
 	Expression(Expression &&other);
+	Expression(const std::vector<Node> &nodes);
+	Expression(std::vector<Node> &&nodes);
 	Expression &operator=(const Expression &other);
 	Expression &operator=(Expression &&other);
 
@@ -127,17 +133,37 @@ public:
 	// general information
 	bool empty() const noexcept;
 	std::size_t size() const noexcept;
+	bool equal_to(const Expression &other) const noexcept;
+
 	inline Term &operator[](std::size_t idx) { return nodes_[idx].term; }
  	inline const Term &operator[](std::size_t idx) const { return nodes_[idx].term; }
 	std::string to_string() const noexcept;
 
+	// max variable value
+	value_t max_value() const noexcept;
+
+	// expression normalization
+	void normalize() noexcept;
+
 	// relation information
 	Relation subtree(std::size_t idx) const noexcept;
+
+	// deep copy of subtree
+	Expression subtree_copy(std::size_t idx) const noexcept;
+
+	// doest certain subtree contains certain variable or constant?
+	bool contains(std::size_t subtree_root_idx, Term term) const noexcept;
 	bool has_left(std::size_t idx) const noexcept;
 	bool has_right(std::size_t idx) const noexcept;
 
 
+	// applying negation to certain subtree
 	void negation(std::size_t idx = 0);
+
+	// adjust all variables values to be at least bound
+	void change_variables(value_t bound);
+
+	// replace all occurrences of `value` to `expression
 	Expression &replace(value_t value, const Expression &expression);
 
 

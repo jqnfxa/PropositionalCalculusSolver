@@ -7,6 +7,7 @@
 #include <queue>
 #include <functional>
 #include <string>
+#include <numeric>
 #include "ast.hpp"
 #include "../parser/parser.hpp"
 
@@ -45,6 +46,18 @@ operation_t opposite(operation_t operation_t)
 }
 
 
+std::size_t increase_index(std::size_t index, std::size_t offset)
+{
+	return index == INVALID_INDEX ? INVALID_INDEX : index + offset;
+}
+
+
+std::size_t decrease_index(std::size_t index, std::size_t offset)
+{
+	return index == INVALID_INDEX || offset > index ? INVALID_INDEX : index - offset;
+}
+
+
 Term::Term(term_t type, operation_t op, value_t value) noexcept
 	: type(type)
 	, op(op)
@@ -80,8 +93,8 @@ std::string Term::to_string() const noexcept
 		}
 		else
 		{
-			// TODO: think what if var value > 9 ?
-			representation << std::abs(value);
+			char suitable_constant = std::abs(value) - 1 + 'A';
+			representation << suitable_constant;
 		}
 	}
 
@@ -112,6 +125,14 @@ Expression::Expression(const Expression &other) : nodes_(other.nodes_)
 
 
 Expression::Expression(Expression &&other) : nodes_(std::move(other.nodes_))
+{}
+
+
+Expression::Expression(const std::vector<Node> &nodes) : nodes_(nodes)
+{}
+
+
+Expression::Expression(std::vector<Node> &&nodes) : nodes_(std::move(nodes))
 {}
 
 
@@ -148,6 +169,37 @@ std::size_t Expression::size() const noexcept
 bool Expression::empty() const noexcept
 {
 	return nodes_.empty();
+}
+
+
+bool Expression::equal_to(const Expression &other) const noexcept
+{
+	std::queue<Relation> lhs;
+	std::queue<Relation> rhs;
+
+	lhs.push(subtree(0));
+	rhs.push(other.subtree(0));
+
+	while (!lhs.empty() && !rhs.empty())
+	{
+		auto l = lhs.front();
+		lhs.pop();
+		auto r = rhs.front();
+		rhs.pop();
+
+		// operation is not the same?
+		if (nodes_[l.self()].term.op != other.nodes_[r.self()].term.op)
+		{
+			return false;
+		}
+
+		lhs.push(subtree(l.left()));
+		lhs.push(subtree(l.right()));
+		rhs.push(other.subtree(r.left()));
+		rhs.push(other.subtree(r.right()));
+	}
+
+	return lhs.empty() && rhs.empty();
 }
 
 
@@ -192,9 +244,161 @@ std::string Expression::to_string() const noexcept
 }
 
 
+value_t Expression::max_value() const noexcept
+{
+	value_t value = 0;
+
+	// find minimum value in variables
+	for (const auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			value = std::max(value, node.term.value);
+		}
+	}
+
+	return value;
+}
+
+
+void Expression::normalize() noexcept
+{
+	std::vector<value_t> order;
+	std::unordered_map<value_t, value_t> remapping;
+
+	std::function<void(Relation)> traverse =
+	[&] (Relation node)
+	{
+		if (node.self() == INVALID_INDEX)
+		{
+			return;
+		}
+
+		traverse(subtree(node.left()));
+
+		if (nodes_[node.self()].term.type == term_t::Variable)
+		{
+			order.push_back(nodes_[node.self()].term.value);
+		}
+
+		traverse(subtree(node.right()));
+	};
+	traverse(subtree(0));
+
+	value_t new_value = 1;
+	for (const auto &entry : order)
+	{
+		if (remapping.contains(entry))
+		{
+			continue;
+		}
+
+		remapping[entry] = new_value;
+		++new_value;
+	}
+
+	for (auto &node : nodes_)
+	{
+		if (node.term.type != term_t::Variable)
+		{
+			continue;
+		}
+
+		node.term.value = remapping[node.term.value];
+	}
+}
+
+
 Relation Expression::subtree(std::size_t idx) const noexcept
 {
 	return in_range(idx) ? nodes_[idx].rel : Relation{};
+}
+
+
+Expression Expression::subtree_copy(std::size_t idx) const noexcept
+{
+	std::size_t new_root_index = subtree(idx).self();
+	std::vector<Node> nodes;
+	std::unordered_map<std::size_t, std::size_t> remapping;
+	std::size_t i = 0;
+
+	std::function<void(Relation)> traverse =
+	[&] (Relation node)
+	{
+		if (node.self() == INVALID_INDEX)
+		{
+			return;
+		}
+
+		// append new node
+		nodes.push_back(nodes_[node.self()]);
+		remapping[node.self()] = i++;
+
+		traverse(subtree(node.left()));
+		traverse(subtree(node.right()));
+	};
+
+	// traverse to collect values of subtree
+	traverse(subtree(new_root_index));
+
+	// break relation with old parent
+	nodes[0].rel.refs[3] = INVALID_INDEX;
+
+	// update indices
+	for (auto &node : nodes)
+	{
+		for (auto &ref : node.rel.refs)
+		{
+			if (!remapping.contains(ref))
+			{
+				continue;
+			}
+
+			ref = remapping.at(ref);
+		}
+	}
+
+	return Expression{std::move(nodes)};
+}
+
+
+bool Expression::contains(std::size_t subtree_root_idx, Term term) const noexcept
+{
+	// since we check single `term`, then function is not possible
+	if (term.type != term_t::Variable && term.type != term_t::Constant)
+	{
+		return false;
+	}
+
+	bool result = false;
+
+	std::function<void(Relation)> traverse =
+	[&] (Relation node)
+	{
+		// early exit if term was found
+		if (result)
+		{
+			return;
+		}
+
+		if (node.self() == INVALID_INDEX)
+		{
+			return;
+		}
+
+		// found!
+		if (nodes_[node.self()].term.value == term.value)
+		{
+			result = true;
+			return;
+		}
+
+		traverse(subtree(node.left()));
+		traverse(subtree(node.right()));
+	};
+
+	traverse(subtree_root_idx);
+	return result;
 }
 
 
@@ -260,6 +464,31 @@ void Expression::negation(std::size_t idx)
 }
 
 
+void Expression::change_variables(value_t bound)
+{
+	value_t min_value = std::numeric_limits<value_t>::max();
+
+	// find minimum value in variables
+	for (const auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			min_value = std::min(min_value, node.term.value);
+		}
+	}
+
+	// adjust variables to be at least bound
+	bound -= min_value;
+	for (auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			node.term.value += bound;
+		}
+	}
+}
+
+
 Expression &Expression::replace(value_t value, const Expression &expression)
 {
 	if (expression.empty())
@@ -288,11 +517,6 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		return *this;
 	}
 
-	const auto update_index = [] (std::size_t index, std::size_t offset)
-	{
-		return index == INVALID_INDEX ? INVALID_INDEX : index + offset;
-	};
-
 	// don't forget that other variables are different and should not intersect with ours
 	auto offset = size();
 	appropriate_value = appropriate_value + 1;
@@ -300,13 +524,16 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 	{
 		// replace entry with new root node
 		bool should_negate = nodes_[entry].term.op == operation_t::Negation;
-		nodes_[entry].term.type = new_expr.nodes_[0].term.type;
-		nodes_[entry].term.op = new_expr.nodes_[0].term.op;
-		nodes_[entry].term.value = new_expr.nodes_[0].term.value;
-		nodes_[entry].rel.refs[1] =
-			update_index(new_expr.subtree(0).left(), offset - 1);
-		nodes_[entry].rel.refs[2] =
-			update_index(new_expr.subtree(0).right(), offset - 1);
+
+		nodes_[entry] = Node{
+			new_expr.nodes_[0].term,
+			Relation{
+				nodes_[entry].rel.refs[0],
+				increase_index(new_expr.subtree(0).left(), offset - 1),
+				increase_index(new_expr.subtree(0).right(), offset - 1),
+				nodes_[entry].rel.refs[3]
+			}
+		};
 
 		for (std::size_t i = 1; i < new_expr.nodes_.size(); ++i)
 		{
@@ -315,7 +542,7 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 
 			for (auto &ref : nodes_.back().rel.refs)
 			{
-				ref = update_index(ref, offset - 1);
+				ref = increase_index(ref, offset - 1);
 			}
 		}
 
@@ -357,18 +584,13 @@ Expression Expression::construct(
 		Relation(0, 1, 1 + lhs.size())
 	);
 
-	const auto update_index = [] (std::size_t index, std::size_t off)
-	{
-		return index == INVALID_INDEX ? INVALID_INDEX : index + off;
-	};
-
 	for (const auto &node : lhs.nodes_)
 	{
 		expression.nodes_.push_back(node);
 
 		for (auto &ref : expression.nodes_.back().rel.refs)
 		{
-			ref = update_index(ref, offset);
+			ref = increase_index(ref, offset);
 		}
 
 		if (expression.nodes_.back().rel.refs[3] == INVALID_INDEX)
@@ -384,7 +606,7 @@ Expression Expression::construct(
 
 		for (auto &ref : expression.nodes_.back().rel.refs)
 		{
-			ref = update_index(ref, offset);
+			ref = increase_index(ref, offset);
 		}
 
 		if (expression.nodes_.back().rel.refs[3] == INVALID_INDEX)
@@ -397,7 +619,7 @@ Expression Expression::construct(
 }
 
 
-/*std::ostream &operator<<(std::ostream &out, const Expression &expression)
+std::ostream &operator<<(std::ostream &out, const Expression &expression)
 {
 	return out << expression.to_string();
-}*/
+}
