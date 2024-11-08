@@ -1,24 +1,46 @@
 #include <queue>
 #include <ranges>
+#include <chrono>
+#include <iostream>
+#include <set>
+#include <queue>
 #include "solver.hpp"
 #include "../math/helper.hpp"
+#include "../math/rules.hpp"
 
 
-Solver::Solver(std::vector<std::shared_ptr<ASTNode>> axioms,
-	std::shared_ptr<ASTNode> target)
-	: axioms_(std::move(axioms))
-	, hypotheses_()
-	, target_(std::move(target))
-{}
-
-
-bool Solver::is_target_proved(std::ostream &out) const
+std::uint64_t ms_since_epoch()
 {
-	for (const auto &hypothesis : hypotheses_)
+	return std::chrono::duration_cast<std::chrono::milliseconds>(
+		std::chrono::system_clock::now().time_since_epoch()
+	).count();
+}
+
+
+Solver::Solver(std::vector<Expression> axioms,
+		Expression target,
+		std::uint64_t time_limit_ms
+) 	: axioms_(std::move(axioms))
+	, produced_()
+	, target_(std::move(target))
+	, time_limit_(time_limit_ms)
+	, ss{}
+	, dump_("log.txt")
+	, dep_{}
+{
+	if (axioms_.size() < 3)
 	{
-		if (is_follows(hypothesis, target_))
+		throw std::invalid_argument("[-] error: at least 3 axioms are required");
+	}
+}
+
+
+bool Solver::is_target_proved() const
+{
+	for (const auto &axiom : axioms_)
+	{
+		if (is_equal(target_, axiom))
 		{
-			out << hypothesis << " ⊢ " << target_ << '\n';
 			return true;
 		}
 	}
@@ -27,208 +49,272 @@ bool Solver::is_target_proved(std::ostream &out) const
 }
 
 
-// ~O(m*n^2 + n^3)
-void Solver::produce_expressions(std::ostream &out)
+bool Solver::add_expression(Expression expression, std::size_t max_len)
 {
-	// TODO: use all rules
-	std::vector<expression_t> new_hypotheses;
 	for (const auto &axiom : axioms_)
 	{
-		for (const auto &hypothesis : hypotheses_)
+		if (is_equal(expression, axiom))
 		{
-			auto expression = mp(hypothesis, axiom);
-			if (expression != nullptr)
-			{
-				thought_chain_log[expression->to_string()] = {
-					"(modes ponens)",
-					{hypothesis->to_string(), axiom->to_string()}
-				};
-
-				new_hypotheses.push_back(expression);
-			}
-		}
-
-		if (auto expression = mp(target_, axiom); expression != nullptr)
-		{
-			thought_chain_log[expression->to_string()] = {
-				"(modes ponens)",
-				{target_->to_string(), axiom->to_string()}
-			};
-
-			new_hypotheses.push_back(expression);
+			return false;
 		}
 	}
 
-	for (const auto &hypothesis1 : hypotheses_)
+	// expression is too long
+	if (expression.size() / 2  > max_len)
 	{
-		for (const auto &hypothesis2 : hypotheses_)
-		{
-			// mp should not modify hypotheses
-			if (auto expression = mp(hypothesis1, hypothesis2, false); expression != nullptr)
-			{
-				thought_chain_log[expression->to_string()] = {
-					"(modes ponens)",
-					{hypothesis1->to_string(), hypothesis2->to_string()}
-				};
-
-				new_hypotheses.push_back(expression);
-			}
-		}
+		return false;
 	}
 
-
-	// heaviest part
-	std::unordered_map<std::int32_t, expression_t> remapping;
-	for (const auto &hypothesis1 : hypotheses_)
-	{
-		for (const auto &hypothesis2 : hypotheses_)
-		{
-			remapping[1] = hypothesis1;
-			remapping[2] = hypothesis2;
-
-			auto expression1 = axioms_[0]->deepcopy();
-			unify(expression1, remapping);
-
-			new_hypotheses.push_back(expression1);
-
-			auto expression2 = axioms_[2]->deepcopy();
-			unify(expression2, remapping);
-
-			new_hypotheses.push_back(expression2);
-		}
-	}
-
-	for (const auto &new_hypothesis : new_hypotheses)
-	{
-		if (new_hypothesis->operations() > 7)
-		{
-			continue;
-		}
-
-		add_hypothesis(new_hypothesis);
-	}
+	dump_ << axioms_.size() << ". " << expression << "\n";
+	axioms_.emplace_back(expression);
+	return true;
 }
 
 
-std::ostream &Solver::print_hypotheses(std::ostream &out)
+void Solver::produce(std::size_t max_len)
 {
-	for (std::size_t i = 0; i < hypotheses_.size(); ++i)
+	if (produced_.empty())
 	{
-		out << hypotheses_[i];
+		return;
+	}
 
-		if (i + 1 < hypotheses_.size())
+	auto expression = produced_.front();
+	produced_.pop();
+
+	if (expression.size() / 2 > max_len)
+	{
+		std::cerr << "failed\n";
+		return;
+	}
+
+	for (const auto &axiom : axioms_)
+	{
+		auto e1 = modus_ponens(axiom, expression);
+		auto e2 = modus_ponens(expression, axiom);
+
+		if (!e1.empty())
 		{
-			out << ", ";
+			produced_.push(e1);
+		}
+		if (!e2.empty())
+		{
+			produced_.push(e2);
 		}
 	}
 
-	return out << '\n';
+	add_expression(expression, max_len);
 }
 
 
-void Solver::add_hypothesis(expression_t expression)
+std::vector<Expression> Solver::insert_in_axiom(
+	std::size_t index,
+	std::vector<Expression> &replacements
+)
 {
-	for (const auto &hypothesis : hypotheses_)
+	std::vector<Expression> result;
+
+	if (index >= axioms_.size())
 	{
-		if (is_same_expression(hypothesis, expression))
-		{
-			return;
-		}
+		return result;
 	}
 
-	hypotheses_.emplace_back(expression->deepcopy());
+	// insert values into axioms
+	for (const auto &r1 : replacements)
+	{
+		for (const auto &r2 : replacements)
+		{
+			auto e = axioms_[index];
+			e.replace(1, r1);
+			e.replace(2, r2);
+			result.emplace_back(e);
+		}
+
+		auto e1 = axioms_[index];
+		e1.replace(1, r1);
+		auto e2 = axioms_[index];
+		e2.replace(2, r1);
+
+		result.emplace_back(e1);
+		result.emplace_back(e2);
+	}
+
+	return result;
 }
 
 
-// TODO: add search time limit
+void Solver::produce_basic_axioms()
+{
+	value_t max_value = 2;
+	std::vector<Expression> initial_guess;
+
+	// ugly way to do it
+	for (std::int32_t neg1 = 0; neg1 <= 1; ++neg1)
+	{
+	for (std::int32_t neg2 = 0; neg2 <= 1; ++neg2)
+	{
+	for (value_t a = 1; a <= max_value; ++a)
+	{
+	initial_guess.emplace_back(
+		Expression(
+			Term(
+				term_t::Variable,
+				neg1 ? operation_t::Negation : operation_t::Nop,
+				a
+			)
+		)
+	);
+	for (value_t b = 1; b <= max_value; ++b)
+	{
+	for (std::int32_t op = 2; op <= 2; ++op)
+	{
+		initial_guess.emplace_back(
+			Expression::construct(
+				Expression(Term(
+					term_t::Variable,
+					neg1 ? operation_t::Negation : operation_t::Nop,
+					a)
+				),
+				static_cast<operation_t>(op),
+				Expression(Term(
+					term_t::Variable,
+					neg2 ? operation_t::Negation : operation_t::Nop,
+					b)
+				)
+			)
+		);
+	}
+	}
+	}
+	}
+	}
+
+	// axiom1
+	for (const auto &new_axiom : insert_in_axiom(0, initial_guess))
+	{
+		add_expression(new_axiom, 100);
+	}
+}
+
+
 void Solver::solve()
 {
-	std::stringstream tss;
 	ss.clear();
+	ss << '\n';
 
-	// step 1: standartize target
-	standartize(target_);
-
-	// step 2: normalize target
-	normalize(target_);
-
-	// step 3: decompose target using deduction rule
-	deduction_theorem_decomposition(ss, hypotheses_, target_);
-
-	// step 4: standartize target (again)
-	standartize(target_);
-	ss << "standartization of target: " << target_ << '\n';
-
-	// step 5: apply conjunction splitting rule
-	conjunction_splitting_rule(ss, hypotheses_);
-
-	// step 6: standartize hypotheses
-	for (auto &hypothesis : hypotheses_)
+	for (std::size_t i = 0; i < axioms_.size(); ++i)
 	{
-		standartize(hypothesis);
+		dump_ << i << ". " << axioms_[i] << '\n';
 	}
 
-	ss << "initial hypotheses: ";
-	print_hypotheses(ss);
-	ss << "initial target: " << target_ << "\n\n";
+	// step 1: decompose target expression to produce more initial axioms
+	//produce_basic_axioms();
+	dep_.resize(axioms_.size());
+	axioms_.reserve(10000);
+	dep_.reserve(10000);
 
-	// step 7: search for solution
-	// TODO: search until time limit is reached
-	std::int32_t lim = 3;
-	while (!is_target_proved(tss) && lim > 0)
+	Expression e;
+	for (const auto &axiom1 : axioms_)
 	{
-		produce_expressions(ss);
-		print_hypotheses(ss);
-		--lim;
+		for (const auto &axiom2 : axioms_)
+		{
+			e = std::move(modus_ponens(axiom1, axiom2));
+			if (e.empty())
+			{
+				continue;
+			}
+
+			produced_.push(e);
+		}
 	}
 
-	produce_report();
-	ss << tss.str();
-}
+	// step 2: calculating the stopping criterion
+	const auto time = ms_since_epoch();
+	time_limit_ =
+		time > std::numeric_limits<std::uint64_t>::max() - time_limit_ ?
+		std::numeric_limits<std::uint64_t>::max() :
+		time + time_limit_;
 
+	std::size_t len = 10;
+	std::size_t seq_size = axioms_.size();
 
-void Solver::produce_report()
-{
-	// ss already contains beginning, so add stored chain
-	std::vector<std::string> chain;
-	std::queue<std::string> expressions;
-
-	expressions.push(target_->to_string());
-	while (!expressions.empty())
+	while (ms_since_epoch() < time_limit_)
 	{
-		auto expression = expressions.front();
-		expressions.pop();
+		produce(len);
 
-		if (!thought_chain_log.contains(expression))
+		if (is_equal(axioms_.back(), target_))
+		{
+			break;
+		}
+
+		// nothing was found, so we need to expand max_len of expression
+		if (seq_size == axioms_.size())
+		{
+			++len;
+			continue;
+		}
+
+		seq_size = axioms_.size();
+	}
+
+	if (!is_target_proved())
+	{
+		ss << "No proof was found in the time allotted\n";
+		return;
+	}
+
+	// find index of target_ in axioms_
+	const auto target_index = std::ranges::find_if(
+		axioms_,
+                [&](const Expression &axiom) { return is_equal(target_, axiom); }
+	) - axioms_.begin();
+
+	// build proof chain
+	std::queue<std::size_t> chain;
+	std::set<std::size_t> sequence;
+	chain.push(target_index);
+
+	while (!chain.empty())
+	{
+		auto index = chain.front();
+		chain.pop();
+
+		sequence.insert(index);
+
+		if (dep_[index].empty())
 		{
 			continue;
 		}
 
-		const auto details = thought_chain_log.at(expression);
-
-		std::stringstream tss;
-		tss << details.rule << ": ";
-
-		for (std::size_t i = 0; i < details.assumptions.size(); ++i)
-		{
-			tss << details.assumptions[i];
-
-			if (i + 1 < details.assumptions.size())
-			{
-				tss << ", ";
-			}
-
-			// add assumptions to queue
-			expressions.push(details.assumptions[i]);
-		}
-		tss << " ⊢ " << expression << '\n';
-		chain.push_back(tss.str());
+		sequence.insert(dep_[index].begin(), dep_[index].end());
+		chain.push(dep_[index][0]);
+		chain.push(dep_[index][1]);
 	}
 
-	std::reverse(chain.begin(), chain.end());
-	for (const auto &step : chain)
+	std::size_t order_index = 1;
+	for (const auto &step : sequence)
 	{
-		ss << step;
+		ss << order_index << ". ";
+
+		if (dep_[step].empty())
+		{
+			ss << "axiom_" << order_index << ": " << axioms_[step];
+		}
+		else
+		{
+			const auto i1 = std::distance(
+				sequence.begin(),
+				sequence.find(dep_[step][0])
+			);
+			const auto i2 = std::distance(
+				sequence.begin(),
+				sequence.find(dep_[step][1])
+			);
+
+			ss << "mp(" << i1 + 1 << "," << i2 + 1 << "): " << axioms_[step];
+		}
+
+		ss << '\n';
+		++order_index;
 	}
 }
 
