@@ -174,32 +174,8 @@ bool Expression::empty() const noexcept
 
 bool Expression::equal_to(const Expression &other) const noexcept
 {
-	std::queue<Relation> lhs;
-	std::queue<Relation> rhs;
-
-	lhs.push(subtree(0));
-	rhs.push(other.subtree(0));
-
-	while (!lhs.empty() && !rhs.empty())
-	{
-		auto l = lhs.front();
-		lhs.pop();
-		auto r = rhs.front();
-		rhs.pop();
-
-		// operation is not the same?
-		if (nodes_[l.self()].term.op != other.nodes_[r.self()].term.op)
-		{
-			return false;
-		}
-
-		lhs.push(subtree(l.left()));
-		lhs.push(subtree(l.right()));
-		rhs.push(other.subtree(r.left()));
-		rhs.push(other.subtree(r.right()));
-	}
-
-	return lhs.empty() && rhs.empty();
+	// FIXME: this will not work for comparison between constants and variables
+	return to_string() == other.to_string();
 }
 
 
@@ -305,6 +281,19 @@ void Expression::normalize() noexcept
 		}
 
 		node.term.value = remapping[node.term.value];
+	}
+}
+
+
+void Expression::make_permanent() noexcept
+{
+	normalize();
+	for (auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			node.term.type = term_t::Constant;
+		}
 	}
 }
 

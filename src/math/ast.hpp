@@ -144,6 +144,7 @@ public:
 
 	// expression normalization
 	void normalize() noexcept;
+	void make_permanent() noexcept;
 
 	// relation information
 	Relation subtree(std::size_t idx) const noexcept;
