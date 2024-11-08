@@ -151,7 +151,7 @@ public:
 	// deep copy of subtree
 	Expression subtree_copy(std::size_t idx) const noexcept;
 
-	// doest certain subtree contains certain variable or constant?
+	// does certain subtree contains certain variable or constant?
 	bool contains(std::size_t subtree_root_idx, Term term) const noexcept;
 	bool has_left(std::size_t idx) const noexcept;
 	bool has_right(std::size_t idx) const noexcept;
