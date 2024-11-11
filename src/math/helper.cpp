@@ -1,6 +1,28 @@
 #include <unordered_map>
 #include <queue>
+#include <iostream>
 #include "helper.hpp"
+
+
+bool add_constraint(
+	Term term,
+	Expression substitution,
+	std::unordered_map<value_t, Expression> &sub
+)
+{
+	if (substitution.contains(0, term))
+	{
+		return false;
+	}
+
+	sub[term.value] = substitution;
+	if (term.op == operation_t::Negation)
+	{
+		sub[term.value].negation();
+	}
+
+	return true;
+}
 
 
 bool unification(
@@ -9,11 +31,11 @@ bool unification(
 	std::unordered_map<value_t, Expression> &substitution
 )
 {
-	std::unordered_map<value_t, Expression> left_substitution;
-	std::unordered_map<value_t, Expression> right_substitution;
+	std::unordered_map<value_t, Expression> sub;
 
 	// change variables to avoid intersections
 	right.change_variables(left.max_value() + 1);
+	value_t v = right.max_value() + 1;
 
 	// algorithm
 	// step 1: find the set of mismatches
@@ -22,24 +44,21 @@ bool unification(
 	// mismatches can only be in `current`, `left` or `right` subtrees
 	// therefore we will use preorder tree traverse
 
-	std::queue<std::size_t> left_expression;
-	std::queue<std::size_t> right_expression;
+	std::queue<std::pair<std::size_t, std::size_t>> expression;
 
-	left_expression.push(left.subtree(0).self());
-	right_expression.push(right.subtree(0).self());
+	expression.emplace(left.subtree(0).self(), right.subtree(0).self());
 
-	while (!left_expression.empty() && !right_expression.empty())
+	while (!expression.empty())
 	{
-		auto left_idx = left_expression.front();
-		left_expression.pop();
-		auto right_idx = right_expression.front();
-		right_expression.pop();
+		auto [left_idx, right_idx] = expression.front();
+		expression.pop();
 
 		auto &left_term = left[left_idx];
 		auto &right_term = right[right_idx];
 
 		// case 0: both terms are functions
-		if (left_term.type == term_t::Function && right_term.type == term_t::Function)
+		if (left_term.type == term_t::Function &&
+			right_term.type == term_t::Function)
 		{
 			// it's impossible to unify different operations
 			if (left_term.op != right_term.op)
@@ -48,15 +67,20 @@ bool unification(
 			}
 
 			// add nodes to process
-			left_expression.push(left.subtree(left_idx).left());
-			left_expression.push(left.subtree(left_idx).right());
-			right_expression.push(right.subtree(right_idx).left());
-			right_expression.push(right.subtree(right_idx).right());
+			expression.emplace(
+				left.subtree(left_idx).left(),
+				right.subtree(right_idx).left()
+			);
+			expression.emplace(
+				left.subtree(left_idx).right(),
+				right.subtree(right_idx).right()
+			);
 			continue;
 		}
 
 		// case 1: both terms are constants
-		if (left_term.type == term_t::Constant && right_term.type == term_t::Constant)
+		if (left_term.type == term_t::Constant &&
+			right_term.type == term_t::Constant)
 		{
 			// can't unify two constants
 			if (left_term.value != right_term.value)
@@ -69,87 +93,59 @@ bool unification(
 		}
 
 		// case 2: left term is constant and right is variable
-		if (left_term.type == term_t::Constant && right_term.type == term_t::Variable)
+		if (left_term.type == term_t::Constant &&
+			right_term.type == term_t::Variable)
 		{
-			// variable of right term already have substitution?
-			if (right_substitution.contains(right_term.value))
+			if (!add_constraint(
+				right_term,
+				Expression{left_term},
+				sub
+			))
 			{
 				return false;
 			}
 
-			right_substitution[right_term.value] = Expression{left_term};
 			continue;
 		}
 
 		// case 3: left term is variable and right is constant
-		if (left_term.type == term_t::Variable && right_term.type == term_t::Constant)
+		if (left_term.type == term_t::Variable &&
+			right_term.type == term_t::Constant)
 		{
-			// variable of right term already have substitution?
-			if (left_substitution.contains(left_term.value))
+			if (!add_constraint(
+				left_term,
+				Expression{right_term},
+				sub
+			))
 			{
 				return false;
 			}
 
-			left_substitution[left_term.value] = Expression{right_term};
 			continue;
 		}
 
 		// case 4: both terms are variables
-		if (left_term.type == term_t::Variable && right_term.type == term_t::Variable)
+		if (left_term.type == term_t::Variable &&
+			right_term.type == term_t::Variable)
 		{
 			// are variables equal?
-			if (left_term.value == right_term.value)
+			if (left_term == right_term)
 			{
 				continue;
 			}
 
-			// can we change variables?
-			if (left_substitution.contains(left_term.value) ||
-				right_substitution.contains(right_term.value))
-			{
-				// only one variable can be changed
-				if (!left_substitution.contains(left_term.value))
-				{
-					left_substitution[left_term.value] = Expression{right_term};
-					if (left_term.op == operation_t::Negation)
-					{
-						left_substitution[left_term.value].negation();
-					}
-					continue;
-				}
-				if (!right_substitution.contains(right_term.value))
-				{
-					right_substitution[right_term.value] = Expression{left_term};
-					if (right_term.op == operation_t::Negation)
-					{
-						right_substitution[right_term.value].negation();
-					}
-					continue;
-				}
+			// since we can change variables to any variables let's do it
+			add_constraint(
+				left_term,
+				right_term,
+				sub
+			);
 
-				// only one variable can't be changed, are substitution equal?
-				if (!left_substitution.at(left_term.value).equal_to(
-					right_substitution.at(right_term.value)))
-				{
-					// give up
-					return false;
-				}
-
-				continue;
-			}
-
-			// since we can change variables to any variables let's pick left
-			left_substitution[left_term.value] = Expression{left_term};
-			if (left_term.op == operation_t::Negation)
-			{
-				left_substitution[left_term.value].negation();
-			}
-
-			right_substitution[right_term.value] = Expression{left_term};
-			if (right_term.op == operation_t::Negation)
-			{
-				right_substitution[right_term.value].negation();
-			}
+			add_constraint(
+				right_term,
+				right_term,
+				sub
+			);
 			continue;
 		}
 
@@ -161,20 +157,12 @@ bool unification(
 				return false;
 			}
 
-			// can we change variable?
-			if (right_substitution.contains(right_term.value))
-			{
-				return false;
-			}
-
-			// function can't depend on variable
-			if (left.contains(left_idx, right_term))
-			{
-				return false;
-			}
-
 			// apply changes
-			right_substitution[right_term.value] = left.subtree_copy(left_idx);
+			add_constraint(
+				right_term,
+				left.subtree_copy(left_idx),
+				sub
+			);
 			continue;
 		}
 
@@ -186,20 +174,12 @@ bool unification(
 				return false;
 			}
 
-			// can we change variable?
-			if (left_substitution.contains(left_term.value))
-			{
-				return false;
-			}
-
-			// function can't depend on variable
-			if (right.contains(right_idx, left_term))
-			{
-				return false;
-			}
-
 			// apply changes
-			left_substitution[left_term.value] = right.subtree_copy(right_idx);
+			add_constraint(
+				left_term,
+				right.subtree_copy(right_idx),
+				sub
+			);
 			continue;
 		}
 
@@ -208,7 +188,7 @@ bool unification(
 		return false;
 	}
 
-	substitution = std::move(right_substitution);
+	substitution = std::move(sub);
 	return true;
 }
 

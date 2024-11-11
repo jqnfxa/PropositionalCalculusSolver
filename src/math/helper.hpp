@@ -5,6 +5,13 @@
 #include "ast.hpp"
 
 
+bool add_constraint(
+	Term term,
+	Expression substitution,
+	std::unordered_map<value_t, Expression> &sub
+);
+
+
 /**
  * @brief Performs unification between two expressions,
  * producing a substitution if possible.
