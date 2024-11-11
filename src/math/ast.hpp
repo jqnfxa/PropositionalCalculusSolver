@@ -76,6 +76,7 @@ struct Term
 
 
 	std::string to_string() const noexcept;
+	bool operator==(const Term &other) const noexcept;
 };
 
 

@@ -93,12 +93,18 @@ std::string Term::to_string() const noexcept
 		}
 		else
 		{
-			char suitable_constant = std::abs(value) - 1 + 'A';
+			char suitable_constant = std::abs(value) - 1 + 'P';
 			representation << suitable_constant;
 		}
 	}
 
 	return representation.str();
+}
+
+
+bool Term::operator==(const Term &other) const noexcept
+{
+	return type == other.type && op == other.op && value == other.value;
 }
 
 
@@ -360,33 +366,35 @@ bool Expression::contains(std::size_t subtree_root_idx, Term term) const noexcep
 	}
 
 	bool result = false;
+	std::queue<Relation> relations;
+	relations.push(subtree(subtree_root_idx));
 
-	std::function<void(Relation)> traverse =
-	[&] (Relation node)
+	while (!relations.empty() && !result)
 	{
-		// early exit if term was found
-		if (result)
-		{
-			return;
-		}
+		auto node = relations.front();
+		relations.pop();
 
 		if (node.self() == INVALID_INDEX)
 		{
-			return;
+			continue;
 		}
 
-		// found!
 		if (nodes_[node.self()].term.value == term.value)
 		{
 			result = true;
-			return;
+                        break;
 		}
 
-		traverse(subtree(node.left()));
-		traverse(subtree(node.right()));
-	};
+		if (node.left() != INVALID_INDEX)
+		{
+			relations.push(subtree(node.left()));
+		}
+		if (node.right() != INVALID_INDEX)
+		{
+			relations.push(subtree(node.right()));
+		}
+	}
 
-	traverse(subtree_root_idx);
 	return result;
 }
 
@@ -487,6 +495,8 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 
 	std::vector<std::size_t> indices;
 	Expression new_expr = expression;
+	Expression new_expr_neg = new_expr;
+	new_expr_neg.negation();
 
 	value_t appropriate_value = 0;
 
@@ -511,22 +521,24 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 	appropriate_value = appropriate_value + 1;
 	for (const auto &entry : indices)
 	{
-		// replace entry with new root node
-		bool should_negate = nodes_[entry].term.op == operation_t::Negation;
+		auto replacement =
+			nodes_[entry].term.op == operation_t::Negation ?
+			new_expr_neg :
+			new_expr;
 
 		nodes_[entry] = Node{
-			new_expr.nodes_[0].term,
+			replacement.nodes_[0].term,
 			Relation{
 				nodes_[entry].rel.refs[0],
-				increase_index(new_expr.subtree(0).left(), offset - 1),
-				increase_index(new_expr.subtree(0).right(), offset - 1),
+				increase_index(replacement.subtree(0).left(), offset - 1),
+				increase_index(replacement.subtree(0).right(), offset - 1),
 				nodes_[entry].rel.refs[3]
 			}
 		};
 
-		for (std::size_t i = 1; i < new_expr.nodes_.size(); ++i)
+		for (std::size_t i = 1; i < replacement.nodes_.size(); ++i)
 		{
-			nodes_.push_back(new_expr.nodes_[i]);
+			nodes_.push_back(replacement.nodes_[i]);
 			//nodes_.back().term.value += appropriate_value;
 
 			for (auto &ref : nodes_.back().rel.refs)
@@ -543,12 +555,6 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		if (subtree(entry).right() != INVALID_INDEX)
 		{
 			nodes_[subtree(entry).right()].rel.refs[3] = entry;
-		}
-
-		// if variable has negation then don't forget to apply it
-		if (should_negate)
-		{
-			negation(entry);
 		}
 
 		// mode offset
