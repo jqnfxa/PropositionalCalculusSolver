@@ -42,6 +42,8 @@ bool unification(
 	std::queue<std::pair<std::size_t, std::size_t>> expression;
 	expression.emplace(left.subtree(0).self(), right.subtree(0).self());
 
+	Expression lhs, rhs;
+
 	while (!expression.empty())
 	{
 		auto [left_idx, right_idx] = expression.front();
@@ -72,28 +74,8 @@ bool unification(
 			continue;
 		}
 
-		// case 1: both terms are constants
-		if (left_term.type == term_t::Constant &&
-			right_term.type == term_t::Constant)
-		{
-			// can't unify two constants
-			if (left_term.value != right_term.value)
-			{
-				return false;
-			}
-
-			// different operations
-			if (left_term.op != right_term.op)
-			{
-				return false;
-			}
-
-			// well, everything seems to be fine
-			continue;
-		}
-
-		Expression lhs = left.subtree_copy(left_idx);
-		Expression rhs = right.subtree_copy(right_idx);
+		lhs = std::move(left.subtree_copy(left_idx));
+		rhs = std::move(right.subtree_copy(right_idx));
 
 		// adjust terms since it may have subs
 		while (lhs[0].type == term_t::Variable &&
@@ -117,6 +99,20 @@ bool unification(
 			{
 				rhs.negation();
 			}
+		}
+
+		// case 1: both terms are constants
+		if (lhs[0].type == term_t::Constant &&
+			rhs[0].type == term_t::Constant)
+		{
+			// can't unify two constants
+			if (lhs[0] != rhs[0])
+			{
+				return false;
+			}
+
+			// well, everything seems to be fine
+			continue;
 		}
 
 		// case 2: left term is constant and right is variable
@@ -288,8 +284,20 @@ bool is_equal(Expression left, Expression right)
 		return false;
 	}
 
-	left.normalize();
-	right.normalize();
+	std::unordered_map<value_t, Expression> sub;
+	if (!unification(left, right, sub))
+	{
+		return false;
+	}
 
-	return left.to_string() == right.to_string();
+	// expressions are equal if and only if they unified with change variables only
+	for (const auto &[v, s] : sub)
+	{
+		if (s[0].type == term_t::Function)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
