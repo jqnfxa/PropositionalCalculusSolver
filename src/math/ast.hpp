@@ -34,6 +34,9 @@ enum class term_t : std::int32_t
 };
 
 
+std::int32_t priority(operation_t op);
+
+
 /**
  * @brief determine whether operation_t is commutative or not
  */
@@ -176,6 +179,9 @@ public:
 		operation_t op,
 		const Expression &rhs
 	);
+
+	// for priority queue store
+	bool operator<(const Expression &other) const noexcept;
 };
 
 

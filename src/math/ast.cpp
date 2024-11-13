@@ -396,7 +396,7 @@ bool Expression::contains(std::size_t subtree_root_idx, Term term) const noexcep
 			continue;
 		}
 
-		if (nodes_[node.self()].term.value == term.value)
+		if (nodes_[node.self()].term == term)
 		{
 			result = true;
                         break;
@@ -628,6 +628,11 @@ Expression Expression::construct(
 	}
 
 	return expression;
+}
+
+bool Expression::operator<(const Expression &other) const noexcept
+{
+	return size() > other.size();
 }
 
 

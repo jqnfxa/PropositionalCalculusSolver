@@ -235,6 +235,7 @@ bool unification(
 		return false;
 	}
 
+	int depth_lim = 5;
 	// normalize substitutions
 	for (auto &[v, expr] : sub)
 	{
@@ -245,21 +246,37 @@ bool unification(
 
 		for (const auto &var : expr.variables())
 		{
+			if (var == v)
+			{
+				sub.clear();
+				return false;
+			}
+		}
+
+		for (const auto &var : expr.variables())
+		{
 			if (!sub.contains(var))
 			{
 				continue;
 			}
 
+			depth_lim = 5;
 			auto replacement = sub.at(var);
 			while (replacement[0].type == term_t::Variable &&
-					sub.contains(replacement[0].value))
+					sub.contains(replacement[0].value) && depth_lim > 0)
 			{
+				--depth_lim;
 				bool should_negate = replacement[0].op == operation_t::Negation;
 				replacement = sub.at(replacement[0].value);
 				if (should_negate)
 				{
 					replacement.negation();
 				}
+			}
+
+			if (depth_lim == 0)
+			{
+				return false;
 			}
 
 			expr.replace(var, replacement);

@@ -51,22 +51,21 @@ bool Solver::is_target_proved() const
 
 bool Solver::add_expression(Expression expression, std::size_t max_len)
 {
-	for (const auto &axiom : axioms_)
-	{
-		if (is_equal(expression, axiom))
-		{
-			return false;
-		}
-	}
-
 	// expression is too long
-	if (expression.size() / 2  > max_len)
+	if (2 * max_len < expression.size())
 	{
 		return false;
 	}
 
-	dump_ << axioms_.size() << ". " << expression << "\n";
+	expression.normalize();
+	if (known_axioms.contains(expression.to_string()))
+	{
+		return false;
+	}
+
+	dump_ << axioms_.size() << ". " << expression << std::endl;
 	axioms_.emplace_back(expression);
+	known_axioms.insert(axioms_.back().to_string());
 	return true;
 }
 
@@ -78,120 +77,67 @@ void Solver::produce(std::size_t max_len)
 		return;
 	}
 
-	auto expression = produced_.front();
-	produced_.pop();
-
-	if (expression.size() / 2 > max_len)
+	std::size_t iteration_size = produced_.size();
+	std::vector<Expression> new_expressions;
+	Expression expr;
+	std::cerr << "iter: " << iteration_size << '\n';
+	for (std::size_t i = 0; i < iteration_size; ++i)
 	{
-		std::cerr << "failed\n";
+		if (ms_since_epoch() > time_limit_)
+		{
+			break;
+		}
+
+		auto expression = produced_.top();
+		produced_.pop();
+
+		if (max_len * 2 < expression.size())
+		{
+			continue;
+		}
+
+		if (is_equal(expression, target_))
+		{
+			add_expression(expression, max_len);
+			break;
+		}
+
+		for (const auto &axiom : axioms_)
+		{
+			expr = std::move(modus_ponens(axiom, expression));
+			if (!expr.empty() && max_len * 2 >= expression.size() &&
+				!known_axioms.contains(expr.to_string()))
+			{
+				new_expressions.push_back(expr);
+			}
+
+			expr = std::move(modus_ponens(expression, axiom));
+			if (!expr.empty() && max_len * 2 >= expression.size() &&
+				!known_axioms.contains(expr.to_string()))
+			{
+				new_expressions.push_back(expr);
+			}
+		}
+
+		add_expression(expression, max_len);
+		expr = std::move(modus_ponens(axioms_.back(), axioms_.back()));
+
+		if (!expr.empty() && max_len * 2 >= expression.size() &&
+			!known_axioms.contains(expr.to_string()))
+		{
+			new_expressions.push_back(expr);
+		}
+	}
+
+	if (ms_since_epoch() > time_limit_)
+	{
 		return;
 	}
 
-	for (const auto &axiom : axioms_)
+	std::cerr << "newly produced: " << new_expressions.size() << std::endl;
+	for (const auto &expr : new_expressions)
 	{
-		auto e1 = modus_ponens(axiom, expression);
-		auto e2 = modus_ponens(expression, axiom);
-
-		if (!e1.empty())
-		{
-			produced_.push(e1);
-		}
-		if (!e2.empty())
-		{
-			produced_.push(e2);
-		}
-	}
-
-	add_expression(expression, max_len);
-}
-
-
-std::vector<Expression> Solver::insert_in_axiom(
-	std::size_t index,
-	std::vector<Expression> &replacements
-)
-{
-	std::vector<Expression> result;
-
-	if (index >= axioms_.size())
-	{
-		return result;
-	}
-
-	// insert values into axioms
-	for (const auto &r1 : replacements)
-	{
-		for (const auto &r2 : replacements)
-		{
-			auto e = axioms_[index];
-			e.replace(1, r1);
-			e.replace(2, r2);
-			result.emplace_back(e);
-		}
-
-		auto e1 = axioms_[index];
-		e1.replace(1, r1);
-		auto e2 = axioms_[index];
-		e2.replace(2, r1);
-
-		result.emplace_back(e1);
-		result.emplace_back(e2);
-	}
-
-	return result;
-}
-
-
-void Solver::produce_basic_axioms()
-{
-	value_t max_value = 2;
-	std::vector<Expression> initial_guess;
-
-	// ugly way to do it
-	for (std::int32_t neg1 = 0; neg1 <= 1; ++neg1)
-	{
-	for (std::int32_t neg2 = 0; neg2 <= 1; ++neg2)
-	{
-	for (value_t a = 1; a <= max_value; ++a)
-	{
-	initial_guess.emplace_back(
-		Expression(
-			Term(
-				term_t::Variable,
-				neg1 ? operation_t::Negation : operation_t::Nop,
-				a
-			)
-		)
-	);
-	for (value_t b = 1; b <= max_value; ++b)
-	{
-	for (std::int32_t op = 2; op <= 2; ++op)
-	{
-		initial_guess.emplace_back(
-			Expression::construct(
-				Expression(Term(
-					term_t::Variable,
-					neg1 ? operation_t::Negation : operation_t::Nop,
-					a)
-				),
-				static_cast<operation_t>(op),
-				Expression(Term(
-					term_t::Variable,
-					neg2 ? operation_t::Negation : operation_t::Nop,
-					b)
-				)
-			)
-		);
-	}
-	}
-	}
-	}
-	}
-
-	// axiom1
-	for (const auto &new_axiom : insert_in_axiom(0, initial_guess))
-	{
-		add_expression(new_axiom, 100);
+		produced_.emplace(expr);
 	}
 }
 
@@ -203,29 +149,13 @@ void Solver::solve()
 
 	for (std::size_t i = 0; i < axioms_.size(); ++i)
 	{
-		dump_ << i << ". " << axioms_[i] << '\n';
+		axioms_[i].normalize();
+		produced_.push(axioms_[i]);
 	}
 
-	// step 1: decompose target expression to produce more initial axioms
-	//produce_basic_axioms();
-	dep_.resize(axioms_.size());
+	axioms_.clear();
 	axioms_.reserve(10000);
 	dep_.reserve(10000);
-
-	Expression e;
-	for (const auto &axiom1 : axioms_)
-	{
-		for (const auto &axiom2 : axioms_)
-		{
-			e = std::move(modus_ponens(axiom1, axiom2));
-			if (e.empty())
-			{
-				continue;
-			}
-
-			produced_.push(e);
-		}
-	}
 
 	// step 2: calculating the stopping criterion
 	const auto time = ms_since_epoch();
@@ -234,8 +164,8 @@ void Solver::solve()
 		std::numeric_limits<std::uint64_t>::max() :
 		time + time_limit_;
 
-	std::size_t len = 10;
 	std::size_t seq_size = axioms_.size();
+	std::size_t len = 15;
 
 	while (ms_since_epoch() < time_limit_)
 	{
@@ -249,8 +179,7 @@ void Solver::solve()
 		// nothing was found, so we need to expand max_len of expression
 		if (seq_size == axioms_.size())
 		{
-			++len;
-			continue;
+			break;
 		}
 
 		seq_size = axioms_.size();
