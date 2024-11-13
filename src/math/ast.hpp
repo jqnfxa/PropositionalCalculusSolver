@@ -135,6 +135,7 @@ public:
 	bool empty() const noexcept;
 	std::size_t size() const noexcept;
 	bool equal_to(const Expression &other) const noexcept;
+	std::vector<value_t> variables() const noexcept;
 
 	inline Term &operator[](std::size_t idx) { return nodes_[idx].term; }
  	inline const Term &operator[](std::size_t idx) const { return nodes_[idx].term; }

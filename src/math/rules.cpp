@@ -32,10 +32,23 @@ Expression modus_ponens(const Expression &lhs, const Expression &rhs)
 	// unification succeeded, let's apply changes
 	auto result = rhs;
 	result.change_variables(lhs.max_value() + 1);
+	auto vars = result.variables();
 
-	for (const auto &[variable, sub] : substitution)
+	for (const auto &var : vars)
 	{
-		result.replace(variable, sub);
+		if (!substitution.contains(var))
+		{
+			continue;
+		}
+
+		auto change = substitution.at(var);
+		while (change[0].type == term_t::Variable &&
+			substitution.contains(change[0].value))
+		{
+			change = substitution.at(change[0].value);
+		}
+
+		result.replace(var, change);
 	}
 
 	// prepare answer

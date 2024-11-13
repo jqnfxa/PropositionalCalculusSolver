@@ -16,11 +16,6 @@ bool add_constraint(
 	}
 
 	sub[term.value] = substitution;
-	if (term.op == operation_t::Negation)
-	{
-		sub[term.value].negation();
-	}
-
 	return true;
 }
 
@@ -45,7 +40,6 @@ bool unification(
 	// therefore we will use preorder tree traverse
 
 	std::queue<std::pair<std::size_t, std::size_t>> expression;
-
 	expression.emplace(left.subtree(0).self(), right.subtree(0).self());
 
 	while (!expression.empty())
@@ -53,8 +47,8 @@ bool unification(
 		auto [left_idx, right_idx] = expression.front();
 		expression.pop();
 
-		auto &left_term = left[left_idx];
-		auto &right_term = right[right_idx];
+		auto left_term = left[left_idx];
+		auto right_term = right[right_idx];
 
 		// case 0: both terms are functions
 		if (left_term.type == term_t::Function &&
@@ -88,19 +82,48 @@ bool unification(
 				return false;
 			}
 
+			// different operations
+			if (left_term.op != right_term.op)
+			{
+				return false;
+			}
+
 			// well, everything seems to be fine
 			continue;
 		}
 
-		// case 2: left term is constant and right is variable
-		if (left_term.type == term_t::Constant &&
-			right_term.type == term_t::Variable)
+		Expression lhs = left.subtree_copy(left_idx);
+		Expression rhs = right.subtree_copy(right_idx);
+
+		// adjust terms since it may have subs
+		while (lhs[0].type == term_t::Variable &&
+			sub.contains(lhs[0].value))
 		{
-			if (!add_constraint(
-				right_term,
-				Expression{left_term},
-				sub
-			))
+			bool should_negate = lhs[0].op == operation_t::Negation;
+
+			lhs = sub.at(lhs[0].value);
+			if (should_negate)
+			{
+				lhs.negation();
+			}
+		}
+		while (rhs[0].type == term_t::Variable &&
+			sub.contains(rhs[0].value))
+		{
+			bool should_negate = rhs[0].op == operation_t::Negation;
+
+			rhs = sub.at(rhs[0].value);
+			if (should_negate)
+			{
+				rhs.negation();
+			}
+		}
+
+		// case 2: left term is constant and right is variable
+		if (lhs[0].type == term_t::Constant &&
+			rhs[0].type == term_t::Variable)
+		{
+			if (!add_constraint(rhs[0], lhs, sub))
 			{
 				return false;
 			}
@@ -109,14 +132,10 @@ bool unification(
 		}
 
 		// case 3: left term is variable and right is constant
-		if (left_term.type == term_t::Variable &&
-			right_term.type == term_t::Constant)
+		if (lhs[0].type == term_t::Variable &&
+			rhs[0].type == term_t::Constant)
 		{
-			if (!add_constraint(
-				left_term,
-				Expression{right_term},
-				sub
-			))
+			if (!add_constraint(lhs[0], rhs, sub))
 			{
 				return false;
 			}
@@ -125,67 +144,130 @@ bool unification(
 		}
 
 		// case 4: both terms are variables
-		if (left_term.type == term_t::Variable &&
-			right_term.type == term_t::Variable)
+		if (lhs[0].type == term_t::Variable &&
+			rhs[0].type == term_t::Variable)
 		{
 			// are variables equal?
-			if (left_term == right_term)
+			if (lhs[0] == rhs[0])
 			{
 				continue;
 			}
 
-			// since we can change variables to any variables let's do it
-			add_constraint(
-				left_term,
-				right_term,
-				sub
-			);
+			// add new variable
+			Expression expr(Term(
+				term_t::Variable,
+				lhs[0].op == operation_t::Negation ||
+				rhs[0].op == operation_t::Negation ?
+				operation_t::Negation :
+				operation_t::Nop,
+				v++
+			));
 
-			add_constraint(
-				right_term,
-				right_term,
-				sub
-			);
+			if (lhs[0].op == operation_t::Negation)
+			{
+				lhs.negation();
+				expr.negation();
+			}
+
+			add_constraint(lhs[0], expr, sub);
+
+			if (lhs[0].op == operation_t::Negation)
+			{
+				expr.negation();
+			}
+
+			if (rhs[0].op == operation_t::Negation)
+			{
+				rhs.negation();
+				expr.negation();
+			}
+
+			add_constraint(rhs[0], expr, sub);
+
+			if (rhs[0].op == operation_t::Negation)
+			{
+				expr.negation();
+			}
+
 			continue;
 		}
 
 		// case 5: left term is function
-		if (left_term.type == term_t::Function)
+		if (lhs[0].type == term_t::Function)
 		{
-			if (right_term.type != term_t::Variable)
+			if (rhs[0].type != term_t::Variable)
 			{
 				return false;
 			}
 
-			// apply changes
-			add_constraint(
-				right_term,
-				left.subtree_copy(left_idx),
-				sub
-			);
+			if (rhs[0].op == operation_t::Negation)
+			{
+				lhs.negation();
+			}
+
+			if (!add_constraint(rhs[0], lhs, sub))
+			{
+				return false;
+			}
+
 			continue;
 		}
 
 		// case 6: right term is function
-		if (right_term.type == term_t::Function)
+		if (rhs[0].type == term_t::Function)
 		{
-			if (left_term.type != term_t::Variable)
+			if (lhs[0].type != term_t::Variable)
 			{
 				return false;
 			}
 
-			// apply changes
-			add_constraint(
-				left_term,
-				right.subtree_copy(right_idx),
-				sub
-			);
+			if (lhs[0].op == operation_t::Negation)
+			{
+				rhs.negation();
+			}
+
+			if (!add_constraint(lhs[0], rhs, sub))
+			{
+				return false;
+			}
+
 			continue;
 		}
 
 		// something went wrong during unification?
 		// this point is basically unreachable
 		return false;
+	}
+
+	// normalize substitutions
+	for (auto &[v, expr] : sub)
+	{
+		if (expr[0].type != term_t::Function)
+		{
+			continue;
+		}
+
+		for (const auto &var : expr.variables())
+		{
+			if (!sub.contains(var))
+			{
+				continue;
+			}
+
+			auto replacement = sub.at(var);
+			while (replacement[0].type == term_t::Variable &&
+					sub.contains(replacement[0].value))
+			{
+				bool should_negate = replacement[0].op == operation_t::Negation;
+				replacement = sub.at(replacement[0].value);
+				if (should_negate)
+				{
+					replacement.negation();
+				}
+			}
+
+			expr.replace(var, replacement);
+		}
 	}
 
 	substitution = std::move(sub);

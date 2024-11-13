@@ -185,6 +185,23 @@ bool Expression::equal_to(const Expression &other) const noexcept
 }
 
 
+std::vector<value_t> Expression::variables() const noexcept
+{
+	std::vector<value_t> vars;
+	vars.reserve(nodes_.size());
+
+	for (const auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			vars.push_back(node.term.value);
+		}
+	}
+
+	return vars;
+}
+
+
 std::string Expression::to_string() const noexcept
 {
 	std::stringstream ss;
