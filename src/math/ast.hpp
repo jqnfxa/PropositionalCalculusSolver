@@ -158,7 +158,7 @@ public:
 	Expression subtree_copy(std::size_t idx) const noexcept;
 
 	// does certain subtree contains certain variable or constant?
-	bool contains(std::size_t subtree_root_idx, Term term) const noexcept;
+	bool contains(Term term) const noexcept;
 	bool has_left(std::size_t idx) const noexcept;
 	bool has_right(std::size_t idx) const noexcept;
 
@@ -182,6 +182,9 @@ public:
 
 	// for priority queue store
 	bool operator<(const Expression &other) const noexcept;
+
+	// compare with other tree
+	bool equals(const Expression &other, bool var_ignore = true) const noexcept;
 };
 
 

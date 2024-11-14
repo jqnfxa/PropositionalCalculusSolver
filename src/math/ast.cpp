@@ -310,7 +310,6 @@ void Expression::normalize() noexcept
 
 void Expression::make_permanent() noexcept
 {
-	normalize();
 	for (auto &node : nodes_)
 	{
 		if (node.term.type == term_t::Variable)
@@ -374,7 +373,7 @@ Expression Expression::subtree_copy(std::size_t idx) const noexcept
 }
 
 
-bool Expression::contains(std::size_t subtree_root_idx, Term term) const noexcept
+bool Expression::contains(Term term) const noexcept
 {
 	// since we check single `term`, then function is not possible
 	if (term.type != term_t::Variable && term.type != term_t::Constant)
@@ -382,37 +381,21 @@ bool Expression::contains(std::size_t subtree_root_idx, Term term) const noexcep
 		return false;
 	}
 
-	bool result = false;
-	std::queue<Relation> relations;
-	relations.push(subtree(subtree_root_idx));
-
-	while (!relations.empty() && !result)
+	for (const auto &node : nodes_)
 	{
-		auto node = relations.front();
-		relations.pop();
-
-		if (node.self() == INVALID_INDEX)
+		if (node.term.type != term_t::Variable &&
+			node.term.type != term_t::Constant)
 		{
 			continue;
 		}
 
-		if (nodes_[node.self()].term == term)
+		if (node.term.value == term.value)
 		{
-			result = true;
-                        break;
-		}
-
-		if (node.left() != INVALID_INDEX)
-		{
-			relations.push(subtree(node.left()));
-		}
-		if (node.right() != INVALID_INDEX)
-		{
-			relations.push(subtree(node.right()));
+			return true;
 		}
 	}
 
-	return result;
+	return false;
 }
 
 
@@ -520,10 +503,14 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 	// find all places
 	for (const auto &node : nodes_)
 	{
-		if (node.term.type == term_t::Variable && node.term.value == value)
+		if (node.term.type == term_t::Variable &&
+			node.term.value == value)
 		{
 			indices.push_back(node.rel.self());
-			appropriate_value = std::max(std::abs(appropriate_value), node.term.value);
+			appropriate_value = std::max(
+				std::abs(appropriate_value),
+				node.term.value
+			);
 		}
 	}
 
@@ -547,8 +534,14 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 			replacement.nodes_[0].term,
 			Relation{
 				nodes_[entry].rel.refs[0],
-				increase_index(replacement.subtree(0).left(), offset - 1),
-				increase_index(replacement.subtree(0).right(), offset - 1),
+				increase_index(
+					replacement.subtree(0).left(),
+					offset - 1
+				),
+				increase_index(
+					replacement.subtree(0).right(),
+					offset - 1
+				),
 				nodes_[entry].rel.refs[3]
 			}
 		};
@@ -633,6 +626,43 @@ Expression Expression::construct(
 bool Expression::operator<(const Expression &other) const noexcept
 {
 	return size() > other.size();
+}
+
+
+bool Expression::equals(const Expression &other, bool var_ignore) const noexcept
+{
+	if (size() != other.size())
+	{
+		return false;
+	}
+
+	for (std::size_t i = 0; i < size(); ++i)
+	{
+		if ((nodes_[i].term.type == term_t::Function) !=
+			(other.nodes_[i].term.type == term_t::Function))
+		{
+			return false;
+		}
+
+		if (nodes_[i].term.type == term_t::Function &&
+			nodes_[i].term.op != other.nodes_[i].term.op)
+		{
+			return false;
+		}
+
+		if (!var_ignore &&
+			(nodes_[i].term.type != other.nodes_[i].term.type))
+		{
+			return false;
+		}
+
+		if (nodes_[i].term.value != other.nodes_[i].term.value)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 
