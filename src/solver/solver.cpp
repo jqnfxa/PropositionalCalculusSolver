@@ -78,7 +78,6 @@ void Solver::produce(std::size_t max_len)
 	}
 
 	std::size_t iteration_size = produced_.size();
-	std::vector<Expression> new_expressions;
 	Expression expr;
 	std::cerr << "iter: " << iteration_size << '\n';
 	for (std::size_t i = 0; i < iteration_size; ++i)
@@ -88,7 +87,7 @@ void Solver::produce(std::size_t max_len)
 			break;
 		}
 
-		auto expression = produced_.top();
+		auto expression = produced_.front();
 		produced_.pop();
 
 		if (max_len * 2 < expression.size())
@@ -96,6 +95,7 @@ void Solver::produce(std::size_t max_len)
 			continue;
 		}
 
+		// early checks
 		if (is_equal(expression, target_))
 		{
 			add_expression(expression, max_len);
@@ -104,18 +104,34 @@ void Solver::produce(std::size_t max_len)
 
 		for (const auto &axiom : axioms_)
 		{
+			if (auto e = modus_ponens(axiom, expression);
+				is_equal(e, target_))
+			{
+				add_expression(e, max_len);
+				return;
+			}
+			if (auto e = modus_ponens(expression, axiom);
+				is_equal(e, target_))
+			{
+				add_expression(e, max_len);
+				return;
+			}
+		}
+
+		for (const auto &axiom : axioms_)
+		{
 			expr = std::move(modus_ponens(axiom, expression));
 			if (!expr.empty() && max_len * 2 >= expression.size() &&
 				!known_axioms.contains(expr.to_string()))
 			{
-				new_expressions.push_back(expr);
+				produced_.emplace(expr);
 			}
 
 			expr = std::move(modus_ponens(expression, axiom));
 			if (!expr.empty() && max_len * 2 >= expression.size() &&
 				!known_axioms.contains(expr.to_string()))
 			{
-				new_expressions.push_back(expr);
+				produced_.emplace(expr);
 			}
 		}
 
@@ -125,7 +141,7 @@ void Solver::produce(std::size_t max_len)
 		if (!expr.empty() && max_len * 2 >= expression.size() &&
 			!known_axioms.contains(expr.to_string()))
 		{
-			new_expressions.push_back(expr);
+			produced_.emplace(expr);
 		}
 	}
 
@@ -134,11 +150,7 @@ void Solver::produce(std::size_t max_len)
 		return;
 	}
 
-	std::cerr << "newly produced: " << new_expressions.size() << std::endl;
-	for (const auto &expr : new_expressions)
-	{
-		produced_.emplace(expr);
-	}
+	std::cerr << "newly produced: " << produced_.size() << std::endl;
 }
 
 
@@ -156,6 +168,7 @@ void Solver::solve()
 	axioms_.clear();
 	axioms_.reserve(10000);
 	dep_.reserve(10000);
+	known_axioms.reserve(10000);
 
 	// step 2: calculating the stopping criterion
 	const auto time = ms_since_epoch();
@@ -165,7 +178,7 @@ void Solver::solve()
 		time + time_limit_;
 
 	std::size_t seq_size = axioms_.size();
-	std::size_t len = 15;
+	std::size_t len = 7;
 
 	while (ms_since_epoch() < time_limit_)
 	{
@@ -176,7 +189,7 @@ void Solver::solve()
 			break;
 		}
 
-		// nothing was found, so we need to expand max_len of expression
+		// nothing was found, so we need to expand max_len or either break
 		if (seq_size == axioms_.size())
 		{
 			break;

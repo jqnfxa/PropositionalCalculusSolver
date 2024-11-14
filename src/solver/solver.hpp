@@ -16,7 +16,7 @@ class Solver
 {
 	std::unordered_set<std::string> known_axioms;
 	std::vector<Expression> axioms_;
-	std::priority_queue<Expression> produced_;
+	std::queue<Expression> produced_;
 
 	Expression target_;
 	std::uint64_t time_limit_;
