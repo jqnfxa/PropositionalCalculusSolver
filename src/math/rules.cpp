@@ -33,7 +33,6 @@ Expression modus_ponens(const Expression &lhs, const Expression &rhs)
 	auto result = rhs;
 	result.change_variables(lhs.max_value() + 1);
 	auto vars = result.variables();
-	int depth_lim = 5;
 
 	for (const auto &var : vars)
 	{
@@ -42,20 +41,16 @@ Expression modus_ponens(const Expression &lhs, const Expression &rhs)
 			continue;
 		}
 
-		depth_lim = 5;
 		auto change = substitution.at(var);
 		while (change[0].type == term_t::Variable &&
-			substitution.contains(change[0].value) &&
-			depth_lim > 0)
+			substitution.contains(change[0].value))
 		{
-			--depth_lim;
+			bool should_negate = change[0].op == operation_t::Negation;
 			change = substitution.at(change[0].value);
-		}
-
-		if (depth_lim == 0 ||
-			change.contains(0, Term(term_t::Variable, operation_t::Nop, var)))
-		{
-			return {};
+			if (should_negate)
+			{
+				change.negation();
+			}
 		}
 
 		result.replace(var, change);
