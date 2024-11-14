@@ -10,7 +10,8 @@ bool add_constraint(
 	std::unordered_map<value_t, Expression> &sub
 )
 {
-	if (substitution.contains(0, term))
+	if (substitution[0].type == term_t::Function &&
+		substitution.contains(term))
 	{
 		return false;
 	}
@@ -144,8 +145,13 @@ bool unification(
 			rhs[0].type == term_t::Variable)
 		{
 			// are variables equal?
-			if (lhs[0] == rhs[0])
+			if (lhs[0].value == rhs[0].value)
 			{
+				if (lhs[0].op != rhs[0].op)
+				{
+					return false;
+				}
+
 				continue;
 			}
 
@@ -158,31 +164,25 @@ bool unification(
 				operation_t::Nop,
 				v++
 			));
+			Expression neg_expr = expr;
+			neg_expr.negation();
 
 			if (lhs[0].op == operation_t::Negation)
 			{
-				lhs.negation();
-				expr.negation();
+				add_constraint(lhs[0], neg_expr, sub);
 			}
-
-			add_constraint(lhs[0], expr, sub);
-
-			if (lhs[0].op == operation_t::Negation)
+			else
 			{
-				expr.negation();
+				add_constraint(lhs[0], expr, sub);
 			}
 
 			if (rhs[0].op == operation_t::Negation)
 			{
-				rhs.negation();
-				expr.negation();
+				add_constraint(rhs[0], neg_expr, sub);
 			}
-
-			add_constraint(rhs[0], expr, sub);
-
-			if (rhs[0].op == operation_t::Negation)
+			else
 			{
-				expr.negation();
+				add_constraint(rhs[0], expr, sub);
 			}
 
 			continue;
@@ -235,7 +235,6 @@ bool unification(
 		return false;
 	}
 
-	int depth_lim = 5;
 	// normalize substitutions
 	for (auto &[v, expr] : sub)
 	{
@@ -246,26 +245,15 @@ bool unification(
 
 		for (const auto &var : expr.variables())
 		{
-			if (var == v)
-			{
-				sub.clear();
-				return false;
-			}
-		}
-
-		for (const auto &var : expr.variables())
-		{
 			if (!sub.contains(var))
 			{
 				continue;
 			}
 
-			depth_lim = 5;
 			auto replacement = sub.at(var);
 			while (replacement[0].type == term_t::Variable &&
-					sub.contains(replacement[0].value) && depth_lim > 0)
+					sub.contains(replacement[0].value))
 			{
-				--depth_lim;
 				bool should_negate = replacement[0].op == operation_t::Negation;
 				replacement = sub.at(replacement[0].value);
 				if (should_negate)
@@ -274,7 +262,8 @@ bool unification(
 				}
 			}
 
-			if (depth_lim == 0)
+			Term to_check(term_t::Variable, operation_t::Nop, var);
+			if (replacement.contains(to_check))
 			{
 				return false;
 			}
@@ -301,20 +290,8 @@ bool is_equal(Expression left, Expression right)
 		return false;
 	}
 
-	std::unordered_map<value_t, Expression> sub;
-	if (!unification(left, right, sub))
-	{
-		return false;
-	}
+	left.normalize();
+	right.normalize();
 
-	// expressions are equal if and only if they unified with change variables only
-	for (const auto &[v, s] : sub)
-	{
-		if (s[0].type == term_t::Function)
-		{
-			return false;
-		}
-	}
-
-	return true;
+	return left.equals(right);
 }
