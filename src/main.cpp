@@ -165,23 +165,87 @@ int main()
 
 	//std::cout << modus_ponens(a,b) << '\n';
 
-	/*std::string expression_str = "!a>(a>b)";
+	/*Expression a("!a>!a");
+	Expression b("(a>b)>(a>b)");
+	Expression c("!a>!a");
+
+	auto got = modus_ponens(a, b);
+	std::cerr << got << ' ' << c << '\n';*/
+
+	/*std::string expression_str = "c";
 	//std::cin >> expression_str;
 	Expression target(expression_str);
-	target.normalize();
+	//target.normalize();
 	target.make_permanent();
 
 	Expression ax1("a>(b>a)");
 	Expression ax2("(a>(b>c))>((a>b)>(a>c))");
 	Expression ax3("(!a>!b)>((!a>b)>a)");
-	std::vector<Expression> axioms = { ax1, ax2, ax3 };
+	Expression ax4("a*b>a");
+	Expression ax5("a*b>b");
+	Expression ax6("a>(b>(a*b))");
+	Expression ax7("a>(!a>b)");
+	Expression ax8("b>(!a>b)");
+	Expression ax10("!a>(a>b)");
+	Expression isr("(!a>!b)>(b>a)");
+	Expression idk("(a>(b*c))>(a>b)");
+	Expression ax11("a>a");
+
+	Expression _1("a>b");
+	Expression _2("b>c");
+	Expression _3("!a>b");
+
+	_1.make_permanent();
+	_2.make_permanent();
+	_3.make_permanent();
+
+	std::vector<Expression> axioms = {
+		ax1,
+		ax2,
+		ax3,
+		ax4,
+		ax5,
+		ax6,
+		ax7,
+		ax8,
+		ax10,
+		isr,
+		idk,
+		ax11,
+		_1,
+		_2,
+		_3
+	};
 
 	std::cerr << "you input: " << target << '\n';
 
-	Solver solve(axioms, target);
+	Solver solve(axioms, target, 120000);
 	solve.solve();
 
 	std::cout << solve.thought_chain() << '\n';*/
+
+	std::string expression_str = "!a>(a>b)";
+	//std::cin >> expression_str;
+	Expression target(expression_str);
+	//target.normalize();
+	target.make_permanent();
+
+	Expression ax1("a>(b>a)");
+	Expression ax2("(a>(b>c))>((a>b)>(a>c))");
+	Expression ax3("(!a>!b)>((!a>b)>a)");
+
+	std::vector<Expression> axioms = {
+		ax1,
+		ax2,
+		ax3
+	};
+
+	std::cerr << "you input: " << target << '\n';
+
+	Solver solve(axioms, target, 120000);
+	solve.solve();
+
+	std::cout << solve.thought_chain() << '\n';
 	return 0;
 }
 
