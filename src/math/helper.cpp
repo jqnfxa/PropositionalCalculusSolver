@@ -120,6 +120,14 @@ bool unification(
 		if (lhs[0].type == term_t::Constant &&
 			rhs[0].type == term_t::Variable)
 		{
+			if (rhs[0].op == operation_t::Negation)
+			{
+				lhs[0].op =
+				lhs[0].op != operation_t::Negation ?
+				operation_t::Negation :
+				operation_t::Nop;
+			}
+
 			if (!add_constraint(rhs[0], lhs, sub))
 			{
 				return false;
@@ -132,6 +140,14 @@ bool unification(
 		if (lhs[0].type == term_t::Variable &&
 			rhs[0].type == term_t::Constant)
 		{
+			if (lhs[0].op == operation_t::Negation)
+			{
+				rhs[0].op =
+				rhs[0].op != operation_t::Negation ?
+				operation_t::Negation :
+				operation_t::Nop;
+			}
+
 			if (!add_constraint(lhs[0], rhs, sub))
 			{
 				return false;
