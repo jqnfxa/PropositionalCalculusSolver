@@ -21,14 +21,12 @@ Solver::Solver(std::vector<Expression> axioms,
 		Expression target,
 		std::uint64_t time_limit_ms
 ) 	: known_axioms_()
-	, conclusions_()
 	, axioms_(std::move(axioms))
 	, produced_()
 	, targets_()
 	, time_limit_(time_limit_ms)
 	, ss{}
-	, dump_("log.txt")
-	, dep_{}
+	, dump_("conclusions.txt")
 {
 	if (axioms_.size() < 3)
 	{
@@ -36,40 +34,29 @@ Solver::Solver(std::vector<Expression> axioms,
 	}
 
 	targets_.emplace_back(std::move(target));
-	axioms_.reserve(10000);
-	dep_.reserve(10000);
-	depends_.reserve(10000);
+	axioms_.reserve(1000);
 	known_axioms_.reserve(10000);
-	conclusions_.reserve(10000);
 
 	// produce hack: implication swap rule (a->b) ~ (!b->!a)
-	Expression ax1("a>(b>a)");
-	Expression ax2("(a>(b>c))>((a>b)>(a>c))");
-	Expression ax3("(!a>!b)>((!a>b)>a)");
-	std::vector<Expression> ax = { ax1, ax2, ax3 };
+	add_expression(modus_ponens(axioms_[0], axioms_[0]), 100);
+	add_expression(modus_ponens(axioms_[1], axioms_[0]), 100);
+	add_expression(modus_ponens(axioms_[3], axioms_[1]), 100);
+	add_expression(modus_ponens(axioms_[4], axioms_[1]), 100);
+	add_expression(modus_ponens(axioms_[2], axioms_[5]), 100);
+	add_expression(modus_ponens(axioms_[6], axioms_[6]), 100);
+	add_expression(modus_ponens(axioms_[7], axioms_[8]), 100);
+	add_expression(modus_ponens(axioms_[3], axioms_[9]), 100);
 
-	ax.push_back(modus_ponens(ax[0], ax[0]));
-	ax.push_back(modus_ponens(ax[1], ax[0]));
-	ax.push_back(modus_ponens(ax[3], ax[1]));
-	ax.push_back(modus_ponens(ax[4], ax[1]));
-	ax.push_back(modus_ponens(ax[2], ax[5]));
-	ax.push_back(modus_ponens(ax[6], ax[6]));
-	ax.push_back(modus_ponens(ax[7], ax[8]));
-	ax.push_back(modus_ponens(ax[3], ax[9]));
+	dump_ << axioms_[3] << ' ' << "mp" << ' ' << axioms_[0] << ' ' << axioms_[0] << '\n';
+	dump_ << axioms_[4] << ' ' << "mp" << ' ' << axioms_[1] << ' ' << axioms_[0] << '\n';
+	dump_ << axioms_[5] << ' ' << "mp" << ' ' << axioms_[3] << ' ' << axioms_[1] << '\n';
+	dump_ << axioms_[6] << ' ' << "mp" << ' ' << axioms_[4] << ' ' << axioms_[1] << '\n';
+	dump_ << axioms_[7] << ' ' << "mp" << ' ' << axioms_[2] << ' ' << axioms_[5] << '\n';
+	dump_ << axioms_[8] << ' ' << "mp" << ' ' << axioms_[6] << ' ' << axioms_[5] << '\n';
+	dump_ << axioms_[9] << ' ' << "mp" << ' ' << axioms_[7] << ' ' << axioms_[8] << '\n';
+	dump_ << axioms_[10] << ' ' << "mp" << ' ' << axioms_[3] << ' ' << axioms_[9] << '\n';
 
-	add_conclusion(ax1, {});
-	add_conclusion(ax2, {});
-	add_conclusion(ax3, {});
-	add_conclusion(ax[3], {ax[0], ax[0]});
-	add_conclusion(ax[4], {ax[1], ax[0]});
-	add_conclusion(ax[5], {ax[3], ax[1]});
-	add_conclusion(ax[6], {ax[4], ax[1]});
-	add_conclusion(ax[7], {ax[2], ax[5]});
-	add_conclusion(ax[8], {ax[6], ax[6]});
-	add_conclusion(ax[9], {ax[7], ax[8]});
-	add_conclusion(ax[10], {ax[3], ax[9]});
-
-	axioms_.push_back(ax.back());
+	axioms_.erase(axioms_.begin() + 3, axioms_.end());
 }
 
 
@@ -104,17 +91,17 @@ bool Solver::deduction_theorem_decomposition(Expression expression)
 		return false;
 	}
 
-	auto left = expression.subtree_copy(expression.subtree(0).left());
-	auto right = expression.subtree_copy(expression.subtree(0).right());
-
 	// Γ ⊢ A → B <=> Γ U {A} ⊢ B
-	axioms_.push_back(left);
-	targets_.push_back(right);
+	axioms_.emplace_back(expression.subtree_copy(expression.subtree(0).left()));
+	targets_.emplace_back(expression.subtree_copy(expression.subtree(0).right()));
 	return true;
 }
 
 
-bool Solver::add_expression(Expression expression, std::size_t max_len)
+bool Solver::add_expression(
+	Expression expression,
+	std::size_t max_len
+)
 {
 	// expression is too long
 	if (2 * max_len < expression.size())
@@ -122,14 +109,8 @@ bool Solver::add_expression(Expression expression, std::size_t max_len)
 		return false;
 	}
 
-	expression.normalize();
-	if (known_axioms_.contains(expression.to_string()))
-	{
-		return false;
-	}
-
-	dump_ << axioms_.size() << ". " << expression << std::endl;
-	axioms_.emplace_back(std::move(expression));
+	// store axiom
+	axioms_.emplace_back(expression);
 	known_axioms_.insert(axioms_.back().to_string());
 	return true;
 }
@@ -147,35 +128,8 @@ bool Solver::add_produced(Expression expression, std::size_t max_len)
 		return false;
 	}
 
-	if (known_axioms_.contains(expression.to_string()))
-	{
-		return false;
-	}
-
-	produced_.emplace(std::move(expression));
+	produced_.emplace(expression);
 	return true;
-}
-
-
-void Solver::add_conclusion(
-	Expression source,
-	const std::initializer_list<Expression> &expressions
-)
-{
-	if (expressions.size() == 0)
-	{
-		return;
-	}
-
-	if (conclusions_.contains(source.to_string()))
-	{
-		conclusions_[source.to_string()].clear();
-	}
-
-	for (const auto &expression : expressions)
-	{
-		conclusions_[source.to_string()].push_back(expression.to_string());
-	}
 }
 
 
@@ -190,6 +144,7 @@ void Solver::produce(std::size_t max_len)
 	std::cerr << "iter: " << iteration_size << '\n';
 
 	Expression expr;
+	std::string representation;
 	for (std::size_t i = 0; i < iteration_size; ++i)
 	{
 		if (ms_since_epoch() > time_limit_)
@@ -205,48 +160,55 @@ void Solver::produce(std::size_t max_len)
 			continue;
 		}
 
-		// early checks
-		if (is_target_proved_by(expression))
+		expression.normalize();
+		representation = expression.to_string();
+
+		if (known_axioms_.contains(representation))
 		{
-			add_expression(expression, max_len);
-			break;
+			continue;
 		}
 
-		for (const auto &axiom : axioms_)
+		// add expression
+		add_expression(expression, max_len);
+
+		if (is_target_proved_by(expression))
 		{
-			expr = std::move(modus_ponens(axiom, expression));
+			return;
+		}
+
+		// produce new expressions
+		for (std::size_t j = 0; j < axioms_.size(); ++j)
+		{
+			expr = std::move(modus_ponens(axioms_[j], axioms_.back()));
+			if (add_produced(expr, max_len))
+			{
+				dump_ << expr << ' ' << "mp" << ' '
+				<< axioms_[j] << ' ' << axioms_.back() << '\n';
+			}
+
 			if (is_target_proved_by(expr))
 			{
-				add_conclusion(expr, {axiom, expression});
 				add_expression(expr, max_len);
 				return;
 			}
 
-			if (add_produced(expr, max_len))
+			if (j + 1 == axioms_.size())
 			{
-				add_conclusion(expr, {axiom, expression});
+				break;
 			}
 
 			// inverse order
-			expr = std::move(modus_ponens(expression, axiom));
+			expr = std::move(modus_ponens(axioms_.back(), axioms_[j]));
+			if (add_produced(expr, max_len))
+			{
+				dump_ << expr << ' ' << "mp" << ' '
+				<< axioms_.back() << ' ' << axioms_[j] << '\n';
+			}
 			if (is_target_proved_by(expr))
 			{
-				add_conclusion(expr, {expression, axiom});
 				add_expression(expr, max_len);
 				return;
 			}
-
-			if (add_produced(expr, max_len))
-			{
-				add_conclusion(expr, {expression, axiom});
-			}
-		}
-
-		add_expression(expression, max_len);
-		expr = std::move(modus_ponens(axioms_.back(), axioms_.back()));
-		if (add_produced(expr, max_len))
-		{
-			add_conclusion(expr, {axioms_.back(), axioms_.back()});
 		}
 	}
 
@@ -262,6 +224,10 @@ void Solver::produce(std::size_t max_len)
 void Solver::solve()
 {
 	ss.clear();
+
+	// we will produce at most m operations in one expression
+	// if more operations are required, increase it
+	std::size_t len = targets_.back().size();
 
 	// simplify target if it's possible
 	while (deduction_theorem_decomposition(targets_.back()))
@@ -279,8 +245,12 @@ void Solver::solve()
 	{
 		axioms_[i].normalize();
 		produced_.push(axioms_[i]);
+		dump_ << axioms_[i] << ' ' << " axiom\n";
 	}
+	// isr rule
+	produced_.push(Expression("(!a>!b)>(b>a)"));
 	axioms_.clear();
+	known_axioms_.clear();
 
 	// calculating the stopping criterion
 	const auto time = ms_since_epoch();
@@ -288,10 +258,6 @@ void Solver::solve()
 		time > std::numeric_limits<std::uint64_t>::max() - time_limit_ ?
 		std::numeric_limits<std::uint64_t>::max() :
 		time + time_limit_;
-
-	// we will produce at most 7 operations in one expression
-	// if more operations are required, increase it
-	std::size_t len = 7;
 
 	while (ms_since_epoch() < time_limit_)
 	{
@@ -313,6 +279,8 @@ void Solver::solve()
 
 	// find which target was proved
 	Expression proof;
+	Expression target_proved;
+
 	for (const auto &axiom : axioms_)
 	{
 		if (!proof.empty())
@@ -325,77 +293,134 @@ void Solver::solve()
 			if (is_equal(target, axiom))
 			{
 				proof = axiom;
+				target_proved = target;
 				break;
 			}
 		}
 	}
 
 	// build proof chain
-	std::queue<std::string> q;
-	std::set<std::string> chain;
-	q.push(proof.to_string());
+	dump_.flush();
 
-	std::vector<std::vector<std::string>> levels;
+	std::ifstream conclusions("conclusions.txt");
+	std::unordered_map<std::string, std::vector<std::string>> conclusions_;
+	conclusions_.reserve(10000);
 
-	while (!q.empty())
+	std::string line;
+	std::string expression;
+	std::string extra_info;
+	std::stringstream tss;
+
+	while (std::getline(conclusions, line))
 	{
-		auto node = q.front();
-		chain.insert(node);
-		q.pop();
+		tss.clear();
+		tss << line;
+		tss >> expression;
 
-		if (!conclusions_.contains(node))
+		conclusions_[expression] = {};
+		while (tss >> extra_info)
 		{
-			continue;
-		}
-
-		for (const auto &new_node : conclusions_.at(node))
-		{
-			q.push(new_node);
+			conclusions_[expression].push_back(extra_info);
 		}
 	}
 
-	// print in pretty format:
-	// 1) sort expressions by their order in thought chain (begin from axioms)
-	// 2) assing indices from 1 to m
-	// 3) print mp(i, j) or axiom for each row
-	// 4) add variable changes after last row to get target
+	TopoSort ts(std::move(conclusions_), proof.to_string());
+	ss << ts.to_string();
 
-	for (const auto &step : chain)
+	// change variables if required
+	std::unordered_map<value_t, Expression> substitution;
+	unification(target_proved, proof, substitution);
+
+	if (substitution.empty())
 	{
-		std::cerr << step;
-		if (!conclusions_.contains(step))
-		{
-			std::cerr << " axiom\n";
-			continue;
-		}
-
-		std::cerr << " deps: ";
-		for (const auto &dep : conclusions_.at(step))
-		{
-			std::cerr << dep << ' ';
-		}
-		std::cerr << '\n';
+		return;
 	}
 
-/*
-	for (std::size_t i = 1; i < sequence_index; ++i)
+	ss << "change variables: " << proof << "\n";
+	for (const auto &[v, s] : substitution)
 	{
-		if (!conclusions_.contains(index_to_node.at(i)))
-		{
-			ss << i << ". axiom: " << index_to_node.at(i) << '\n';
-			continue;
-		}
-
-		auto lhs = node_to_index.at(conclusions_.at(index_to_node.at(i))[0]);
-		auto rhs = node_to_index.at(conclusions_.at(index_to_node.at(i))[1]);
-
-		ss << i << ". mp(" << lhs << ',' << rhs << "): " << index_to_node.at(i) << '\n';
+		ss << (char)(v + 'A' - 1) << " -> " << s << '\n';
 	}
-*/
+
+	ss << "proved: " << target_proved << '\n';
 }
 
 
 std::string Solver::thought_chain() const
 {
+	return ss.str();
+}
+
+
+TopoSort::TopoSort(
+	std::unordered_map<std::string, std::vector<std::string>> &&graph,
+	std::string target
+)	: graph_(std::move(graph))
+	, target_(std::move(target))
+{
+	perform_sort(target_);
+}
+
+
+void TopoSort::dfs(const std::string &expr, std::unordered_set<std::string> &visited)
+{
+	visited.insert(expr);
+
+	auto rule = graph_[expr][0];
+	if (rule == "axiom")
+	{
+		sorted_expressions_.push_back(expr);
+		return;
+	}
+
+	for (std::size_t i = 1; i < graph_[expr].size(); ++i)
+	{
+		if (const auto dependency = graph_[expr][i];
+			!visited.contains(dependency))
+		{
+			dfs(dependency, visited);
+		}
+	}
+
+	sorted_expressions_.push_back(expr);
+}
+
+
+void TopoSort::perform_sort(const std::string &target)
+{
+	std::unordered_set<std::string> visited;
+
+        // start from the target expression
+        dfs(target, visited);
+}
+
+
+std::string TopoSort::to_string() const
+{
+	std::stringstream ss;
+	std::unordered_map<std::string, std::size_t> index_of;
+
+	for (std::size_t i = 0; i < sorted_expressions_.size(); ++i)
+	{
+		index_of[sorted_expressions_[i]] = i + 1;
+	}
+
+	for (std::size_t i = 0; i < sorted_expressions_.size(); ++i)
+	{
+		const auto &expr = graph_.at(sorted_expressions_[i]);
+		ss << index_of[sorted_expressions_[i]] << ". ";
+
+		if (expr[0] == "mp")
+		{
+			ss << "mp(" << index_of[expr[1]] << ',' << index_of[expr[2]] << "): ";
+		}
+		else
+		{
+			ss << "axiom: ";
+		}
+
+		ss << sorted_expressions_[i] << '\n';
+	}
+
 	return ss.str();
 }
