@@ -147,8 +147,12 @@ public:
 	// max variable value
 	value_t max_value() const noexcept;
 
+	// min variable value
+	value_t min_value() const noexcept;
+
 	// expression normalization
 	void normalize() noexcept;
+	void standardize() noexcept;
 	void make_permanent() noexcept;
 
 	// relation information

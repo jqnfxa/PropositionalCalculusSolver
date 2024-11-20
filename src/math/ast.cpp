@@ -93,7 +93,7 @@ std::string Term::to_string() const noexcept
 		}
 		else
 		{
-			char suitable_constant = std::abs(value) - 1 + 'P';
+			char suitable_constant = std::abs(value) - 1 + 'A';
 			representation << suitable_constant;
 		}
 	}
@@ -247,7 +247,7 @@ value_t Expression::max_value() const noexcept
 {
 	value_t value = 0;
 
-	// find minimum value in variables
+	// find max value in variables
 	for (const auto &node : nodes_)
 	{
 		if (node.term.type == term_t::Variable)
@@ -257,6 +257,23 @@ value_t Expression::max_value() const noexcept
 	}
 
 	return value;
+}
+
+
+value_t Expression::min_value() const noexcept
+{
+	value_t min_value = std::numeric_limits<value_t>::max();
+
+	// find min value in variables
+	for (const auto &node : nodes_)
+	{
+		if (node.term.type == term_t::Variable)
+		{
+			min_value = std::min(min_value, node.term.value);
+		}
+	}
+
+	return min_value;
 }
 
 
@@ -304,6 +321,47 @@ void Expression::normalize() noexcept
 		}
 
 		node.term.value = remapping[node.term.value];
+	}
+}
+
+
+void Expression::standardize() noexcept
+{
+	// bfs traverse
+	std::queue<std::size_t> q;
+	q.push(0);
+
+	while (!q.empty())
+	{
+		const auto node_idx = q.front();
+		q.pop();
+
+		// skip invalid nodes
+		if (node_idx == INVALID_INDEX)
+		{
+			continue;
+		}
+
+		if (nodes_[node_idx].term.type != term_t::Function)
+		{
+			continue;
+		}
+
+		if (nodes_[node_idx].term.op == operation_t::Disjunction)
+		{
+			nodes_[node_idx].term.op = operation_t::Implication;
+			negation(subtree(node_idx).left());
+		}
+
+		// continue standartization if required
+		if (has_left(node_idx))
+		{
+			q.push(subtree(node_idx).left());
+		}
+		if (has_right(node_idx))
+		{
+			q.push(subtree(node_idx).right());
+		}
 	}
 }
 
@@ -463,19 +521,8 @@ void Expression::negation(std::size_t idx)
 
 void Expression::change_variables(value_t bound)
 {
-	value_t min_value = std::numeric_limits<value_t>::max();
-
-	// find minimum value in variables
-	for (const auto &node : nodes_)
-	{
-		if (node.term.type == term_t::Variable)
-		{
-			min_value = std::min(min_value, node.term.value);
-		}
-	}
-
 	// adjust variables to be at least bound
-	bound -= min_value;
+	bound -= min_value();
 	for (auto &node : nodes_)
 	{
 		if (node.term.type == term_t::Variable)
@@ -656,7 +703,8 @@ bool Expression::equals(const Expression &other, bool var_ignore) const noexcept
 			return false;
 		}
 
-		if (nodes_[i].term.value != other.nodes_[i].term.value)
+		if (nodes_[i].term.value != other.nodes_[i].term.value ||
+			nodes_[i].term.op != other.nodes_[i].term.op)
 		{
 			return false;
 		}
