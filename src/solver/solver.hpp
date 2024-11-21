@@ -12,22 +12,22 @@
 #include "../math/ast.hpp"
 
 
-class TopoSort
+struct Node
 {
-	std::unordered_map<std::string, std::vector<std::string>> graph_;
-	std::string target_;
-	std::vector<std::string> sorted_expressions_;
+	std::string expression;
+	std::string rule;
+	std::vector<std::string> dependencies;
 
-	void perform_sort(const std::string &target);
-	void dfs(const std::string& expr, std::unordered_set<std::string>& visited);
-
-public:
-	TopoSort(
-		std::unordered_map<std::string, std::vector<std::string>> &&graph,
-		std::string target
-	);
-
-	std::string to_string() const;
+	Node(std::string expression = "", std::string rule = "")
+		: expression(std::move(expression))
+		, rule(std::move(rule))
+		, dependencies({})
+	{
+		if (rule == "")
+		{
+			rule = "axiom";
+		}
+	}
 };
 
 
@@ -37,7 +37,7 @@ class Solver
 
 	// map hash value of expression to hash_values of dependent expressions
 	std::vector<Expression> axioms_;
-	std::queue<Expression> produced_;
+	std::vector<Expression> produced_;
 
 	std::vector<Expression> targets_;
 	std::uint64_t time_limit_;
@@ -49,25 +49,20 @@ class Solver
 	// Γ ⊢ A → B <=> Γ U {A} ⊢ B
 	bool deduction_theorem_decomposition(Expression expression);
 
-	// tries to add expression to axioms
-	bool add_expression(
-		Expression expression,
-		std::size_t max_len
-	);
-
-	// tries to add expression to produced_
-	bool add_produced(Expression expression, std::size_t max_len);
-
 	// iteration function
 	void produce(std::size_t max_len);
 
 	// is any target if follows from expression?
 	bool is_target_proved_by(const Expression &expression) const;
 
+	// determine whether expression is good or not based on heuristic function
+	bool is_good_expression(const Expression &expression, std::size_t max_len) const;
+
+	void build_thought_chain(Expression proof, Expression proved_target);
 public:
 	Solver(std::vector<Expression> axioms,
 		Expression target,
-		std::uint64_t time_limit_ms = 1000
+		std::uint64_t time_limit_ms = 60000
 	);
 
 	void solve();
