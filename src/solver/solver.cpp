@@ -236,7 +236,7 @@ void Solver::solve()
 	}
 
 	// isr rule
-	//produced_.emplace_back(Expression("(!a>!b)>(b>a)"));
+	produced_.emplace_back(Expression("(!a>!b)>(b>a)"));
 	axioms_.clear();
 	known_axioms_.clear();
 
