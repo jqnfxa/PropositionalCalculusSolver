@@ -1,1 +1,4 @@
 *.o
+conclusions.txt
+pc-solver
+.vscode
