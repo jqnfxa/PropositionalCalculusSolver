@@ -1,7 +1,56 @@
 #include <unordered_map>
 #include <queue>
 #include <iostream>
+#include <stack>
 #include "helper.hpp"
+
+
+void topological_sort_util(
+	value_t v,
+	std::vector<std::vector<value_t>> &adj,
+	std::vector<bool> &visited,
+	std::stack<value_t> &s
+)
+{
+	visited[v] = true;
+
+	for (value_t i : adj[v])
+	{
+		if (!visited[i])
+		{
+			topological_sort_util(i, adj, visited, s);
+		}
+	}
+
+	s.push(v);
+}
+
+
+std::vector<value_t> topological_sort(
+	std::vector<std::vector<value_t>> &adj,
+	value_t size
+)
+{
+	std::stack<value_t> s;
+	std::vector<bool> visited(size, false);
+	std::vector<value_t> order;
+
+	for (value_t i = 0; i < size; ++i)
+	{
+		if (!visited[i])
+		{
+			topological_sort_util(i, adj, visited, s);
+		}
+	}
+
+	while (!s.empty())
+	{
+		order.push_back(s.top());
+		s.pop();
+	}
+
+	return order;
+}
 
 
 bool add_constraint(
@@ -251,9 +300,26 @@ bool unification(
 		return false;
 	}
 
-	// normalize substitutions
-	for (auto &[v, expr] : sub)
+	std::vector<std::vector<value_t>> adjacent(v - 1);
+	for (const auto &[u, expr] : sub)
 	{
+		for (const auto &w : expr.variables())
+		{
+			adjacent[w - 1].push_back(u - 1);
+		}
+	}
+
+	auto order = topological_sort(adjacent, v - 1);
+	for (auto &variable : order)
+	{
+		variable = variable + 1;
+
+		if (!sub.contains(variable))
+		{
+			continue;
+		}
+
+		auto &expr = sub.at(variable);
 		if (expr[0].type != term_t::Function)
 		{
 			continue;
