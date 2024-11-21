@@ -8,8 +8,8 @@
 
 int main()
 {
-	std::string expression_str = "(a>c)>((b>c)>((a|b)>c))";
-	//std::cin >> expression_str;
+	std::string expression_str;
+	std::cin >> expression_str;
 	Expression target(expression_str);
 	target.standardize();
 	target.make_permanent();
@@ -17,17 +17,12 @@ int main()
 	std::vector<Expression> axioms = {
 		Expression("a>(b>a)"),
 		Expression("(a>(b>c))>((a>b)>(a>c))"),
-		Expression("(!a>!b)>((!a>b)>a)"),
-		Expression("a>(!a>b)"),
-		Expression("a*b>a"),
-		Expression("a*b>b"),
-		Expression("a>(b>(a*b))"),
-		Expression("a>a")
+		Expression("(!a>!b)>((!a>b)>a)")
 	};
 
-	std::cerr << "your input: " << target << '\n';
+	std::cerr << "your input: " << target << "\n\n";
 
-	Solver solve(axioms, target, 10000);
+	Solver solve(axioms, target);
 	solve.solve();
 
 	std::cout << solve.thought_chain() << '\n';
@@ -39,6 +34,6 @@ int main()
 // ax6 - ok a>(b>(a*b))
 // ax7 - ok a>(a|b)
 // ax8 - ok b>(a|b)
-// ax9 - ? (a>c)>((b>c)>((a|b)>c))
+// ax9 - ok (a>c)>((b>c)>((a|b)>c))
 // ax10 - ok !a>(a>b)
 // ax11 - ok a|!a
