@@ -114,6 +114,7 @@ Expression::Expression() = default;
 Expression::Expression(std::string_view expression)
 {
 	nodes_ = std::move(ExpressionParser(expression).parse().nodes_);
+	modified_ = true;
 }
 
 
@@ -123,23 +124,37 @@ Expression::Expression(Term term)
 		term,
 		Relation(0)
 	);
+
+	modified_ = true;
 }
 
 
-Expression::Expression(const Expression &other) : nodes_(other.nodes_)
+Expression::Expression(const Expression &other)
+	: nodes_(other.nodes_)
+	, representation_(other.representation_)
+	, modified_(true)
 {}
 
 
-Expression::Expression(Expression &&other) : nodes_(std::move(other.nodes_))
+Expression::Expression(Expression &&other)
+	: nodes_(std::move(other.nodes_))
+	, representation_(std::move(other.representation_))
+	, modified_(true)
 {}
 
 
-Expression::Expression(const std::vector<Node> &nodes) : nodes_(nodes)
-{}
+Expression::Expression(const std::vector<Node> &nodes)
+	: nodes_(nodes)
+{
+	modified_ = true;
+}
 
 
-Expression::Expression(std::vector<Node> &&nodes) : nodes_(std::move(nodes))
-{}
+Expression::Expression(std::vector<Node> &&nodes)
+	: nodes_(std::move(nodes))
+{
+	modified_ = true;
+}
 
 
 Expression &Expression::operator=(const Expression &other)
@@ -150,6 +165,7 @@ Expression &Expression::operator=(const Expression &other)
 	}
 
 	nodes_ = other.nodes_;
+	modified_ = true;
 	return *this;
 }
 
@@ -162,6 +178,7 @@ Expression &Expression::operator=(Expression &&other)
 	}
 
 	nodes_ = std::move(other.nodes_);
+	modified_ = true;
 	return *this;
 }
 
@@ -172,16 +189,30 @@ std::size_t Expression::size() const noexcept
 }
 
 
-bool Expression::empty() const noexcept
+std::size_t Expression::operations(operation_t op) const noexcept
 {
-	return nodes_.empty();
+	std::size_t count = 0;
+
+	for (const auto &node : nodes_)
+	{
+		if (node.term.type != term_t::Function)
+		{
+			continue;
+		}
+
+		if (node.term.op == op)
+		{
+			++count;
+		}
+	}
+
+	return count;
 }
 
 
-bool Expression::equal_to(const Expression &other) const noexcept
+bool Expression::empty() const noexcept
 {
-	// FIXME: this will not work for comparison between constants and variables
-	return to_string() == other.to_string();
+	return nodes_.empty();
 }
 
 
@@ -202,15 +233,16 @@ std::vector<value_t> Expression::variables() const noexcept
 }
 
 
-std::string Expression::to_string() const noexcept
+void Expression::recalculate_representation() noexcept
 {
-	std::stringstream ss;
 	if (empty())
 	{
-		ss << "empty";
-		return ss.str();
+		representation_ = "empty";
+		modified_ = false;
+		return;
 	}
 
+	std::stringstream ss;
 	std::function<void(std::ostream &, Relation, const Expression &)> f =
 	[&] (std::ostream &out, Relation root, const Expression &expression)
 	{
@@ -239,7 +271,19 @@ std::string Expression::to_string() const noexcept
 	};
 
 	f(ss, subtree(0), *this);
-	return ss.str();
+	representation_ = std::move(ss.str());
+	modified_ = false;
+}
+
+
+std::string Expression::to_string() noexcept
+{
+	if (modified_)
+	{
+		recalculate_representation();
+	}
+
+	return representation_;
 }
 
 
@@ -322,6 +366,8 @@ void Expression::normalize() noexcept
 
 		node.term.value = remapping[node.term.value];
 	}
+
+	modified_ = true;
 }
 
 
@@ -363,6 +409,8 @@ void Expression::standardize() noexcept
 			q.push(subtree(node_idx).right());
 		}
 	}
+
+	modified_ = true;
 }
 
 
@@ -375,6 +423,8 @@ void Expression::make_permanent() noexcept
 			node.term.type = term_t::Constant;
 		}
 	}
+
+	modified_ = true;
 }
 
 
@@ -516,6 +566,8 @@ void Expression::negation(std::size_t idx)
 			q.push(subtree(node_idx).right());
 		}
 	}
+
+	modified_ = true;
 }
 
 
@@ -530,6 +582,8 @@ void Expression::change_variables(value_t bound)
 			node.term.value += bound;
 		}
 	}
+
+	modified_ = true;
 }
 
 
@@ -618,6 +672,7 @@ Expression &Expression::replace(value_t value, const Expression &expression)
 		offset = nodes_.size();
 	}
 
+	modified_ = true;
 	return *this;
 }
 
@@ -667,6 +722,7 @@ Expression Expression::construct(
 		}
 	}
 
+	expression.modified_ = true;
 	return expression;
 }
 
@@ -714,7 +770,7 @@ bool Expression::equals(const Expression &other, bool var_ignore) const noexcept
 }
 
 
-std::ostream &operator<<(std::ostream &out, const Expression &expression)
+std::ostream &operator<<(std::ostream &out, Expression &expression)
 {
 	return out << expression.to_string();
 }

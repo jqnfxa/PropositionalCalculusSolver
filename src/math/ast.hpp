@@ -116,11 +116,15 @@ class Expression
 
 private:
 	std::vector<Node> nodes_;
+	std::string representation_;
+	bool modified_ = true;
 
 	inline bool in_range(std::size_t index) const noexcept
 	{
 		return index < nodes_.size();
 	}
+
+	void recalculate_representation() noexcept;
 public:
 	// construction
 	Expression();
@@ -137,12 +141,12 @@ public:
 	// general information
 	bool empty() const noexcept;
 	std::size_t size() const noexcept;
-	bool equal_to(const Expression &other) const noexcept;
+	std::size_t operations(operation_t op) const noexcept;
 	std::vector<value_t> variables() const noexcept;
 
 	inline Term &operator[](std::size_t idx) { return nodes_[idx].term; }
  	inline const Term &operator[](std::size_t idx) const { return nodes_[idx].term; }
-	std::string to_string() const noexcept;
+	std::string to_string() noexcept;
 
 	// max variable value
 	value_t max_value() const noexcept;
@@ -192,6 +196,6 @@ public:
 };
 
 
-std::ostream &operator<<(std::ostream &out, const Expression &expression);
+std::ostream &operator<<(std::ostream &out, Expression &expression);
 
 #endif // AST_HPP
