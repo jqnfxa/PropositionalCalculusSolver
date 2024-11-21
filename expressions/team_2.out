@@ -1,5 +1,6 @@
 input: (a>b)>(a>((!(b>((a>(b>c))>((a>b)>(a>c))))>!a)>((!(b>((a>(b>c))>((a>b)>(a>c))))>a)>(b>((a>(b>c))>((a>b)>(a>c)))))))
-your input: (a>b)>(a>(((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c)))))))
+normalized input: (a>b)>(a>(((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c)))))))
+
 deduction theorem: Γ ⊢ (a>b)>(a>(((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c))))))) <=> Γ U {a>b} ⊢ a>(((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c))))))
 deduction theorem: Γ ⊢ a>(((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c)))))) <=> Γ U {a} ⊢ ((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c)))))
 deduction theorem: Γ ⊢ ((b*((a>(b>c))*((a>b)*(a*!c))))>!a)>(((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c))))) <=> Γ U {(b*((a>(b>c))*((a>b)*(a*!c))))>!a} ⊢ ((b*((a>(b>c))*((a>b)*(a*!c))))>a)>(b>((a>(b>c))>((a>b)>(a>c))))
