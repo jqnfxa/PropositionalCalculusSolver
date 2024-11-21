@@ -1,0 +1,21 @@
+deduction theorem: Γ ⊢ !a>(a>b) <=> Γ U {!a} ⊢ a>b
+deduction theorem: Γ ⊢ a>b <=> Γ U {a} ⊢ b
+1. axiom: (A>(B>C))>((A>B)>(A>C))
+2. axiom: (!A>!B)>((!A>B)>A)
+3. axiom: A>(B>A)
+4. mp(2,3): A>((!B>!C)>((!B>C)>B))
+5. mp(6,7): (A>((B>A)>C))>(A>C)
+6. mp(3,3): A>(B>(C>B))
+7. mp(1,1): ((A>(B>C))>(A>B))>((A>(B>C))>(A>C))
+8. mp(1,3): A>((B>(C>D))>((B>C)>(B>D)))
+9. mp(4,5): !A>((!B>A)>B)
+10. mp(6,1): (A>B)>(A>(C>B))
+11. mp(8,5): (A>B)>((C>A)>(C>B))
+12. mp(9,10): !A>(A>((!B>A)>B))
+13. mp(5,11): (A>(B>((C>B)>D)))>(A>(B>D))
+14. mp(12,13): !A>(A>B)
+change variables: !A>(A>B)
+B -> b
+A -> a
+proved: !a>(a>b)
+

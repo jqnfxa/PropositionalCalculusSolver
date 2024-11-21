@@ -1,0 +1,3 @@
+deduction theorem: Γ ⊢ !a>!a <=> Γ U {!a} ⊢ !a
+1. axiom: !a
+

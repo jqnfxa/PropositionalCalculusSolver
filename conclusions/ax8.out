@@ -1,0 +1,4 @@
+deduction theorem: Γ ⊢ b>(!a>b) <=> Γ U {b} ⊢ !a>b
+deduction theorem: Γ ⊢ !a>b <=> Γ U {!a} ⊢ b
+1. axiom: b
+

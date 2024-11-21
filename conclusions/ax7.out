@@ -1,0 +1,28 @@
+deduction theorem: Γ ⊢ a>(!a>b) <=> Γ U {a} ⊢ !a>b
+deduction theorem: Γ ⊢ !a>b <=> Γ U {!a} ⊢ b
+1. axiom: !a
+2. axiom: A>(B>A)
+3. axiom: a
+4. axiom: (A>(B>C))>((A>B)>(A>C))
+5. axiom: (!A>!B)>((!A>B)>A)
+6. mp(2,2): A>(B>(C>B))
+7. mp(4,4): ((A>(B>C))>(A>B))>((A>(B>C))>(A>C))
+8. mp(2,4): (A>B)>(A>A)
+9. mp(5,2): A>((!B>!C)>((!B>C)>B))
+10. mp(6,7): (A>((B>A)>C))>(A>C)
+11. mp(8,2): A>((B>C)>(B>B))
+12. mp(8,4): ((A>B)>A)>((A>B)>A)
+13. mp(9,10): !A>((!B>A)>B)
+14. mp(9,4): (A>(!B>!C))>(A>((!B>C)>B))
+15. mp(11,12): (((A>B)>(A>A))>C)>((A>B)>(A>A))
+16. mp(1,2): A>!a
+17. mp(3,13): (!A>!a)>A
+18. mp(14,15): (!A>B)>(!A>!A)
+19. mp(16,17): A
+20. mp(18,18): (!A>B)>(!A>B)
+21. mp(19,20): !A>B
+change variables: !A>B
+B -> b
+A -> a
+proved: !a>b
+
